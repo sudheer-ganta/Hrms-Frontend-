@@ -44,7 +44,7 @@ export const AttendanceFilterBar: React.FC<AttendanceFilterBarProps> = ({
 
   return (
     <div className="bg-white rounded-2xl p-4 md:p-5 border border-slate-200/80 shadow-card space-y-4">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         {/* Search input */}
         <div className="relative flex-1 min-w-[240px]">
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -99,7 +99,7 @@ export const AttendanceFilterBar: React.FC<AttendanceFilterBarProps> = ({
         </div>
 
         {/* Machine & Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <input
             type="text"
             placeholder="Machine ID"

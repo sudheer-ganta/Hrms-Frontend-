@@ -43,6 +43,7 @@ const MainLayout: React.FC = () => {
   const [activeSourceId, setActiveSourceId] = useState<string>('all');
   const [isSyncModalOpen, setIsSyncModalOpen] = useState<boolean>(false);
   const [syncModalTarget, setSyncModalTarget] = useState<string>('office');
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
 
   const loadSources = async () => {
     try {
@@ -76,18 +77,23 @@ const MainLayout: React.FC = () => {
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-sky-50/40 to-blue-50/60 text-slate-800 font-sans">
-      {/* Fixed Sidebar */}
-      <Sidebar sources={sources} />
+      {/* Sidebar — fixed on desktop, drawer on mobile */}
+      <Sidebar
+        sources={sources}
+        isOpen={isMobileSidebarOpen}
+        onClose={() => setIsMobileSidebarOpen(false)}
+      />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
         <Header
           onOpenSync={() => handleOpenSync()}
           sources={sources}
           activeSourceId={activeSourceId}
+          onOpenMobileMenu={() => setIsMobileSidebarOpen(true)}
         />
 
-        <main className="flex-1 p-6 md:p-8 max-w-7xl w-full mx-auto">
+        <main className="flex-1 p-4 md:p-6 lg:p-8 max-w-7xl w-full mx-auto">
           <Routes>
             {/* Root route: Auto-switches based on Role */}
             <Route

@@ -205,7 +205,7 @@ export const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({
             </div>
 
             {/* KPI Mini-Cards */}
-            <div className="grid grid-cols-4 gap-2.5 mt-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-4">
               <div className="p-3 bg-white rounded-xl border border-slate-200/80 shadow-xs text-center">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Payable (MTD)</span>
                 <span className="text-base font-extrabold font-heading text-emerald-600 mt-0.5 block">{totalPresent}d</span>
@@ -524,7 +524,7 @@ export const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({
                     return (
                       <div
                         key={dayNum}
-                        className={`h-13 rounded-xl border flex flex-col items-center justify-center p-1 text-xs transition-all ${bgClass}`}
+                        className={`h-10 sm:h-12 rounded-xl border flex flex-col items-center justify-center p-1 text-xs transition-all ${bgClass}`}
                         title={isHoliday ? `${dateStr}: ${holidayMatch?.name} (Corporate Holiday - Full Pay)` : record ? `${dateStr}: In ${record.inTime || '--'}, Out ${record.outTime || '--'} (${record.status})` : `${dateStr} (${label})`}
                       >
                         <span className="font-extrabold text-[13px]">{dayNum}</span>

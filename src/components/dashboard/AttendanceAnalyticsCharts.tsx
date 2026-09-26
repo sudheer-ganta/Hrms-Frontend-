@@ -73,7 +73,7 @@ export const AttendanceAnalyticsCharts: React.FC<AttendanceAnalyticsChartsProps>
           </p>
         </div>
 
-        <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+        <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-semibold">
           <button
             type="button"
             onClick={() => setActiveChartTab('attendance')}
@@ -249,16 +249,16 @@ export const AttendanceAnalyticsCharts: React.FC<AttendanceAnalyticsChartsProps>
             </span>
           </div>
 
-          <div className="grid grid-cols-12 gap-2 h-44 items-end pt-6 pb-2 px-2 bg-slate-50 rounded-2xl border border-slate-100">
+          <div className="flex items-end gap-1 h-44 pt-6 pb-2 px-2 bg-slate-50 rounded-2xl border border-slate-100 overflow-x-auto">
             {hourlyData.map((item, index) => {
               const heightPct = Math.round((item.punches / maxHourly) * 100);
               const isPeak = heightPct > 75;
               return (
-                <div key={index} className="flex flex-col items-center h-full justify-end group">
+                <div key={index} className="flex flex-col items-center h-full justify-end group flex-1 min-w-[18px]">
                   <span className="text-[10px] font-bold text-slate-600 mb-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     {item.punches}
                   </span>
-                  <div className="w-full max-w-[28px] bg-slate-200 rounded-t-lg relative flex items-end h-full overflow-hidden">
+                  <div className="w-full bg-slate-200 rounded-t-lg relative flex items-end h-full overflow-hidden">
                     <div
                       style={{ height: `${heightPct}%` }}
                       className={`w-full rounded-t-lg transition-all duration-500 ${

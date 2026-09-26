@@ -222,7 +222,7 @@ export const TimesheetMatrix: React.FC<TimesheetMatrixProps> = ({
             <thead className="bg-slate-50 sticky top-0 z-30 text-[10px] text-slate-500 border-b border-slate-200 uppercase tracking-wider font-bold">
               <tr>
                 {/* Fixed Opaque Sticky Employee Column */}
-                <th className="p-3 sticky left-0 z-40 bg-white min-w-[210px] shadow-md border-r border-slate-200">
+                <th className="p-3 sticky left-0 z-40 bg-white min-w-[140px] sm:min-w-[210px] shadow-md border-r border-slate-200">
                   Employee (Click for 360 View)
                 </th>
                 <th className="p-2.5 text-center min-w-[70px] bg-slate-50">
@@ -263,7 +263,7 @@ export const TimesheetMatrix: React.FC<TimesheetMatrixProps> = ({
                     onClick={() => setSelectedEmployeeForDrawer(sheet)}
                     className="p-3 sticky left-0 z-20 bg-white shadow-md border-r border-slate-200 cursor-pointer hover:bg-sky-50/60 transition-colors"
                   >
-                    <div className="font-bold text-slate-900 truncate max-w-[190px] group-hover:text-brand-600 transition-colors flex items-center justify-between">
+                    <div className="font-bold text-slate-900 truncate max-w-[120px] sm:max-w-[190px] group-hover:text-brand-600 transition-colors flex items-center justify-between">
                       <span>{sheet.employeeName}</span>
                     </div>
                     <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-mono mt-0.5">

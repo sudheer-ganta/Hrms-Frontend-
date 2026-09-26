@@ -227,7 +227,7 @@ export const RawSwipes: React.FC<RawSwipesPageProps> = ({
             </div>
 
             {/* Pagination */}
-            <div className="p-4 border-t border-slate-200 bg-slate-50/80 flex items-center justify-between text-xs text-slate-600">
+            <div className="p-4 border-t border-slate-200 bg-slate-50/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-slate-600">
               <span className="font-medium">
                 Total <strong className="text-brand-600">{pagination.total}</strong> raw swipes
               </span>

@@ -149,7 +149,7 @@ export const RecentPunchesTable: React.FC<RecentPunchesTableProps> = ({
           </div>
 
           {/* Pagination Controls */}
-          <div className="flex items-center justify-between pt-2 text-xs text-slate-600">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2 text-xs text-slate-600">
             <span className="font-medium">
               Showing {startIndex + 1} to {Math.min(startIndex + pageSize, filteredPunches.length)} of{' '}
               <strong className="text-slate-900 font-bold">{filteredPunches.length}</strong> entries

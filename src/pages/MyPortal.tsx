@@ -274,7 +274,7 @@ export const MyPortal: React.FC = () => {
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-2xl text-xs font-semibold">
+      <div className="flex flex-wrap items-center gap-2 bg-slate-100 p-1 rounded-2xl text-xs font-semibold">
         <button
           type="button"
           onClick={() => setActiveTab('attendance')}
@@ -322,7 +322,7 @@ export const MyPortal: React.FC = () => {
           <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-card space-y-4">
             <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
               <span className="font-heading font-bold text-slate-900 text-sm">{calendarMonthLabel} Monthly Calendar Matrix</span>
-              <div className="flex items-center gap-3 text-[10px]">
+              <div className="flex flex-wrap items-center gap-3 text-[10px]">
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Present</span>
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-purple-600" /> Holiday</span>
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-rose-500" /> Absent</span>
@@ -387,7 +387,7 @@ export const MyPortal: React.FC = () => {
                 return (
                   <div
                     key={dayNum}
-                    className={`h-13 rounded-xl border flex flex-col items-center justify-center p-1 text-xs transition-all ${bgClass}`}
+                    className={`h-10 sm:h-13 rounded-xl border flex flex-col items-center justify-center p-1 text-xs transition-all ${bgClass}`}
                     title={isHoliday ? `${dateStr}: ${holidayMatch?.name}` : record ? `${dateStr}: In ${record.inTime || '--'}, Out ${record.outTime || '--'}` : dateStr}
                   >
                     <span className="font-extrabold text-[13px]">{dayNum}</span>

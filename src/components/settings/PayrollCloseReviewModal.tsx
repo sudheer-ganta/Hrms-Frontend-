@@ -107,7 +107,7 @@ export const PayrollCloseReviewModal: React.FC<PayrollCloseReviewModalProps> = (
               )}
 
               {/* Summary stats */}
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
                   <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                     <Users className="w-3.5 h-3.5" /> Employees
@@ -144,7 +144,7 @@ export const PayrollCloseReviewModal: React.FC<PayrollCloseReviewModalProps> = (
               )}
 
               {/* Employee table */}
-              <div className="rounded-xl border border-slate-200 overflow-hidden">
+              <div className="rounded-xl border border-slate-200 overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-bold border-b border-slate-200 text-[10px] sticky top-0">
                     <tr>

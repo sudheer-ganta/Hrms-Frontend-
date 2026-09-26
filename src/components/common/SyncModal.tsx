@@ -200,7 +200,7 @@ export const SyncModal: React.FC<SyncModalProps> = ({
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
                   What do you want to sync?
                 </label>
-                <div className="grid grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <button
                     type="button"
                     onClick={() => setApiMode('inout')}
@@ -288,7 +288,7 @@ export const SyncModal: React.FC<SyncModalProps> = ({
                   <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
                     Select Location
                   </label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     {sources.map((src) => (
                       <button
                         key={src.id}

@@ -106,7 +106,7 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={handleSendEmail}
               disabled={emailSending || !summary}
@@ -128,7 +128,7 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
 
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition ml-2"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition ml-auto"
             >
               <X className="w-5 h-5" />
             </button>

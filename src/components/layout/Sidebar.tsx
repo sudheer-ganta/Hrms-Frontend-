@@ -14,7 +14,8 @@ import {
   UserPlus,
   Crown,
   FileSpreadsheet,
-  Clock
+  Clock,
+  X
 } from 'lucide-react';
 import { AttendanceSource } from '../../types';
 import { useAuth } from '../../context/AuthContext';
@@ -22,9 +23,11 @@ import { useAuth } from '../../context/AuthContext';
 interface SidebarProps {
   sources: AttendanceSource[];
   isCollapsed?: boolean;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ sources }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ sources, isOpen = false, onClose }) => {
   const { user, isSuperAdmin, isFounder, isEmployee } = useAuth();
 
   // Employee-only navigation
@@ -127,8 +130,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ sources }) => {
     ? [...managementNavItems, superAdminItem] 
     : managementNavItems;
 
-  return (
-    <aside className="w-64 bg-white/95 backdrop-blur-md border-r border-slate-200/80 flex flex-col shrink-0 h-screen sticky top-0 select-none shadow-sm z-30 justify-between">
+  const handleNavClick = () => {
+    // Close mobile drawer on nav click
+    if (onClose) onClose();
+  };
+
+  const sidebarContent = (
+    <aside className="w-64 bg-white/95 backdrop-blur-md border-r border-slate-200/80 flex flex-col shrink-0 h-full select-none shadow-sm z-30 justify-between">
       <div>
         {/* Brand Header */}
         <div className="p-5 flex items-center justify-between border-b border-slate-100">
@@ -145,6 +153,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ sources }) => {
               </p>
             </div>
           </div>
+          {/* Mobile close button */}
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="lg:hidden p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
+              aria-label="Close navigation"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
         </div>
 
         {/* Navigation Links */}
@@ -160,6 +178,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ sources }) => {
                 key={item.to}
                 to={item.to}
                 end={item.to === '/' || item.to === '/my-dashboard'}
+                onClick={handleNavClick}
                 className={({ isActive }) =>
                   `nav-link flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all ${
                     isActive
@@ -244,5 +263,33 @@ export const Sidebar: React.FC<SidebarProps> = ({ sources }) => {
         </p>
       </div>
     </aside>
+  );
+
+  return (
+    <>
+      {/* Desktop Sidebar: always visible on lg+ */}
+      <div className="hidden lg:flex h-screen sticky top-0">
+        {sidebarContent}
+      </div>
+
+      {/* Mobile Drawer Overlay */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-40 lg:hidden"
+          aria-modal="true"
+          role="dialog"
+        >
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+            onClick={onClose}
+          />
+          {/* Drawer panel */}
+          <div className="absolute inset-y-0 left-0 flex h-full animate-in slide-in-from-left duration-300">
+            {sidebarContent}
+          </div>
+        </div>
+      )}
+    </>
   );
 };
