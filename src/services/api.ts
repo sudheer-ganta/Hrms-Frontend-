@@ -297,4 +297,41 @@ export const api = {
     const res = await apiClient.get('/health');
     return res.data;
   },
+
+  // Auth & User Management
+  login: async (identifier: string, password: string):Promise<{ token: string; user: any }> => {
+    const res = await apiClient.post<{ success: boolean; data: { token: string; user: any }; message?: string }>('/auth/login', {
+      identifier,
+      password,
+    });
+    return res.data.data;
+  },
+
+  getMe: async (): Promise<any> => {
+    const res = await apiClient.get<{ success: boolean; data: any }>('/auth/me');
+    return res.data.data;
+  },
+
+  getUsers: async (): Promise<any[]> => {
+    const res = await apiClient.get<{ success: boolean; data: any[] }>('/auth/users');
+    return res.data.data;
+  },
+
+  createUser: async (payload: any): Promise<any> => {
+    const res = await apiClient.post<{ success: boolean; data: any; message?: string }>('/auth/users', payload);
+    return res.data.data;
+  },
+
+  deleteUser: async (id: string): Promise<void> => {
+    await apiClient.delete(`/auth/users/${id}`);
+  },
+
+  toggleUserStatus: async (id: string): Promise<any> => {
+    const res = await apiClient.post<{ success: boolean; data: any }>(`/auth/users/${id}/toggle-status`);
+    return res.data.data;
+  },
+
+  resetUserPassword: async (id: string, newPassword: string): Promise<void> => {
+    await apiClient.post(`/auth/users/${id}/reset-password`, { newPassword });
+  },
 };

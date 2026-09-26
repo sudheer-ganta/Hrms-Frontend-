@@ -47,16 +47,12 @@ export const UserManagement: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [resUsers, emps] = await Promise.all([
-        fetch('/api/auth/users', {
-          headers: { Authorization: `Bearer ${token}` },
-        }).then((r) => r.json()),
+      const [userList, emps] = await Promise.all([
+        api.getUsers(),
         api.getAllEmployees(),
       ]);
 
-      if (resUsers.success) {
-        setUsers(resUsers.data || []);
-      }
+      setUsers(userList || []);
       setEmployeesList(emps || []);
     } catch (err) {
       console.error('Error loading users:', err);
@@ -82,57 +78,37 @@ export const UserManagement: React.FC = () => {
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch('/api/auth/create-user', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(formData),
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || 'Failed to create user account.');
-      }
-
+      await api.createUser(formData);
       setNotification({ type: 'success', message: `Account created successfully for ${formData.name || formData.email}!` });
       setIsCreateModalOpen(false);
       setFormData({ role: 'EMPLOYEE', empCode: '', name: '', email: '', password: '' });
       loadData();
     } catch (err: any) {
-      setNotification({ type: 'error', message: err.message || 'Creation failed.' });
+      const message = err.response?.data?.message || err.message || 'Creation failed.';
+      setNotification({ type: 'error', message });
     }
   };
 
   const handleToggleStatus = async (userId: string) => {
     try {
-      const res = await fetch(`/api/auth/users/${userId}/toggle-status`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.message);
+      await api.toggleUserStatus(userId);
       setNotification({ type: 'success', message: 'User status updated.' });
       loadData();
     } catch (err: any) {
-      alert(err.message || 'Failed to update status.');
+      const message = err.response?.data?.message || err.message || 'Failed to update status.';
+      alert(message);
     }
   };
 
   const handleDeleteUser = async (userId: string, name: string) => {
     if (!window.confirm(`Are you sure you want to permanently delete the login for ${name}?`)) return;
     try {
-      const res = await fetch(`/api/auth/users/${userId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.message);
+      await api.deleteUser(userId);
       setNotification({ type: 'success', message: 'User deleted.' });
       loadData();
     } catch (err: any) {
-      alert(err.message || 'Failed to delete user.');
+      const message = err.response?.data?.message || err.message || 'Failed to delete user.';
+      alert(message);
     }
   };
 
@@ -140,21 +116,13 @@ export const UserManagement: React.FC = () => {
     e.preventDefault();
     if (!selectedUserForReset || !newPassword) return;
     try {
-      const res = await fetch(`/api/auth/users/${selectedUserForReset._id}/reset-password`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ newPassword }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.message);
+      await api.resetUserPassword(selectedUserForReset._id, newPassword);
       setNotification({ type: 'success', message: `Password reset successfully for ${selectedUserForReset.name}.` });
       setIsResetPassModalOpen(false);
       setNewPassword('');
     } catch (err: any) {
-      alert(err.message || 'Failed to reset password.');
+      const message = err.response?.data?.message || err.message || 'Failed to reset password.';
+      alert(message);
     }
   };
 

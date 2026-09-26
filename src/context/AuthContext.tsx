@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, AuthContextType } from '../types/auth.types';
+import { api } from '../services/api';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -27,19 +28,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const savedToken = localStorage.getItem(TOKEN_STORAGE_KEY);
       if (savedToken) {
         try {
-          const res = await fetch('/api/auth/me', {
-            headers: {
-              Authorization: `Bearer ${savedToken}`,
-            },
-          });
-          if (res.ok) {
-            const data = await res.json();
-            if (data.success && data.data) {
-              setUser(data.data);
-              localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(data.data));
-            }
+          const data = await api.getMe();
+          if (data) {
+            setUser(data);
+            localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(data));
           } else {
-            // Token expired or invalid
             logout();
           }
         } catch (err) {
@@ -55,25 +48,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (identifier: string, pass: string) => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier, password: pass }),
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || 'Login failed. Please verify credentials.');
-      }
-
-      const receivedToken = data.data.token;
-      const receivedUser = data.data.user;
+      const data = await api.login(identifier, pass);
+      const receivedToken = data.token;
+      const receivedUser = data.user;
 
       setToken(receivedToken);
       setUser(receivedUser);
 
       localStorage.setItem(TOKEN_STORAGE_KEY, receivedToken);
       localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(receivedUser));
+    } catch (err: any) {
+      const message = err.response?.data?.message || err.message || 'Login failed. Please verify credentials.';
+      throw new Error(message);
     } finally {
       setIsLoading(false);
     }
