@@ -493,51 +493,8 @@ export const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({
               </div>
             </div>
 
-            {/* 3. Overtime Policy & Bank Account */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Overtime Policy */}
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="otEligibleCheck"
-                    checked={formData.otEligible ?? true}
-                    onChange={(e) => setFormData({ ...formData, otEligible: e.target.checked })}
-                    className="w-4 h-4 text-[#1184b0] rounded border-slate-300 focus:ring-[#1184b0]"
-                  />
-                  <label htmlFor="otEligibleCheck" className="text-xs font-semibold text-slate-800 cursor-pointer flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5 text-sky-600" /> Overtime (OT) Eligible
-                  </label>
-                </div>
-                <p className="text-[11px] text-slate-500">
-                  Calculates extra hours past the 8-hour shift automatically.
-                </p>
-
-                <div className="pt-1">
-                  <label className="block text-[11px] font-medium text-slate-700 mb-0.5">
-                    Custom OT Rate (₹ / hour)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    disabled={!(formData.otEligible ?? true)}
-                    value={formData.otRatePerHour ?? ''}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        otRatePerHour: e.target.value === '' ? undefined : Number(e.target.value),
-                      })
-                    }
-                    placeholder="Auto (company default rate)"
-                    className="w-full px-2.5 py-1 text-xs border border-slate-300 rounded bg-white font-mono disabled:bg-slate-100 disabled:text-slate-400"
-                  />
-                  <p className="text-[10px] text-slate-400 mt-0.5">
-                    Leave blank to use the company-wide OT multiplier from Settings. Set a value here only if this employee's OT rate is different.
-                  </p>
-                </div>
-              </div>
-
+            {/* 3. Bank Account Details */}
+            <div className="grid grid-cols-1 gap-4">
               {/* Bank Details */}
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
                 <div className="grid grid-cols-2 gap-2">

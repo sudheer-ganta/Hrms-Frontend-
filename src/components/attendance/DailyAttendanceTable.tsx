@@ -118,15 +118,14 @@ export const DailyAttendanceTable: React.FC<DailyAttendanceTableProps> = ({
                   <th className="py-3.5 px-4">Check-In</th>
                   <th className="py-3.5 px-4">Check-Out</th>
                   <th className="py-3.5 px-4">Work Hours</th>
-                  <th className="py-3.5 px-4">Overtime</th>
                   <th className="py-3.5 px-4">Late In</th>
                   <th className="py-3.5 px-4 text-center">Status</th>
                   <th className="py-3.5 px-4">Remarks</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-                {records.map((r) => (
-                  <tr key={r.recordKey} className="hover:bg-slate-50/80 transition-all group">
+                {records.map((r, idx) => (
+                  <tr key={r._id || `${r.recordKey || `${r.sourceId}_${r.employeeCode}_${r.date}`}_${idx}`} className="hover:bg-slate-50/80 transition-all group">
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2.5">
                         <div className="w-7 h-7 rounded-full bg-sky-100 border border-sky-200 flex items-center justify-center text-xs text-brand-600 font-extrabold shadow-xs shrink-0">
@@ -171,15 +170,6 @@ export const DailyAttendanceTable: React.FC<DailyAttendanceTableProps> = ({
                     </td>
                     <td className="py-3 px-4 whitespace-nowrap">
                       {getWorkTimeDisplay(r.workTime, r.workMinutes, r.status)}
-                    </td>
-                    <td className="py-3 px-4 whitespace-nowrap font-mono text-xs">
-                      {r.overTime && r.overTime !== '00:00' && r.overTime !== '--:--' ? (
-                        <span className="px-2 py-0.5 rounded bg-violet-50 border border-violet-200 text-violet-700 text-[11px] font-bold">
-                          +{r.overTime}
-                        </span>
-                      ) : (
-                        <span className="text-slate-400 font-medium">0h</span>
-                      )}
                     </td>
                     <td className="py-3 px-4 whitespace-nowrap font-mono text-xs">
                       {r.lateIn && r.lateIn !== '00:00' && r.lateIn !== '--:--' ? (

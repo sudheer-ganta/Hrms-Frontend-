@@ -210,6 +210,7 @@ export interface ShiftConfig {
   gracePeriodMinutes: number;
   halfDayThresholdMinutes: number;
   fullDayThresholdMinutes: number;
+  minCheckoutForFullDay?: string;
   breakDurationMinutes: number;
 }
 
@@ -220,6 +221,13 @@ export interface OvertimeConfig {
   defaultRateMultiplier: number;
 }
 
+export interface LeaveQuotaConfig {
+  casualLeave: number;
+  sickLeave: number;
+  earnedLeave: number;
+  compOff?: number;
+}
+
 export interface SyncSchedulerConfig {
   enabled: boolean;
   intervalMinutes: number;
@@ -228,6 +236,7 @@ export interface SyncSchedulerConfig {
 export interface HRMSPolicySettings {
   shift: ShiftConfig;
   overtime: OvertimeConfig;
+  leaves?: LeaveQuotaConfig;
   weeklyOffDays: string[];
   holidays: CompanyHoliday[];
   scheduler: SyncSchedulerConfig;
@@ -314,6 +323,9 @@ export interface EmployeePayrollSummary {
   basicSalary: number;
   hra: number;
   allowances: number;
+  grossSalary?: number;
+  employerPf?: number;
+  employerEsic?: number;
   otRatePerHour: number;
   otEarnings: number;
   grossEarnings: number;
@@ -322,6 +334,7 @@ export interface EmployeePayrollSummary {
   esiDeduction: number;
   ptDeduction: number;
   totalDeductions: number;
+  totalNetSalary?: number;
   netPayable: number;
   netPayableWords: string;
   bankAccount?: string;
@@ -368,6 +381,7 @@ export interface AttendanceRegularizationRequest {
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   createdAt: string;
   reviewedAt?: string;
+  reviewedBy?: string;
   reviewComment?: string;
 }
 

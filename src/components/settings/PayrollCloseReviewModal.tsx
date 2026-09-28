@@ -152,7 +152,6 @@ export const PayrollCloseReviewModal: React.FC<PayrollCloseReviewModalProps> = (
                       <th className="py-2.5 px-3">Name</th>
                       <th className="py-2.5 px-3 text-right">Payable Days</th>
                       <th className="py-2.5 px-3 text-right">LOP Days</th>
-                      <th className="py-2.5 px-3 text-right">OT Hours</th>
                       <th className="py-2.5 px-3 text-right">Net Pay (₹)</th>
                     </tr>
                   </thead>
@@ -163,7 +162,6 @@ export const PayrollCloseReviewModal: React.FC<PayrollCloseReviewModalProps> = (
                         <td className="py-2 px-3 truncate max-w-[160px]">{s.name}</td>
                         <td className="py-2 px-3 text-right font-mono">{s.payableDays}</td>
                         <td className="py-2 px-3 text-right font-mono text-rose-600">{s.lopDays}</td>
-                        <td className="py-2 px-3 text-right font-mono text-indigo-600">{s.totalOtHours}</td>
                         <td className="py-2 px-3 text-right font-mono font-bold">
                           {s.monthlyCtc > 0 ? `₹${s.netPayable.toLocaleString('en-IN')}` : (
                             <span className="text-amber-600 italic font-normal">Not Configured</span>

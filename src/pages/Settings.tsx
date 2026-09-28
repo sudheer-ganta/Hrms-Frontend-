@@ -307,7 +307,20 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                   })}
                   className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
                 />
-                <span className="text-[10px] text-slate-400 mt-1 block">Punches after 09:{String(policy.shift.gracePeriodMinutes).padStart(2, '0')} AM are flagged as Late In</span>
+                {(() => {
+                  const [sH, sM] = (policy.shift.startTime || '09:00').split(':').map(Number);
+                  const totalGraceMins = ((sH || 9) * 60 + (sM || 0)) + (policy.shift.gracePeriodMinutes || 0);
+                  const endH = Math.floor(totalGraceMins / 60) % 24;
+                  const endM = totalGraceMins % 60;
+                  const period = endH >= 12 ? 'PM' : 'AM';
+                  const displayH = endH % 12 === 0 ? 12 : endH % 12;
+                  const graceTimeFormatted = `${String(displayH).padStart(2, '0')}:${String(endM).padStart(2, '0')} ${period}`;
+                  return (
+                    <span className="text-[10px] text-slate-400 mt-1 block">
+                      Punches after {graceTimeFormatted} are flagged as Late In
+                    </span>
+                  );
+                })()}
               </div>
 
               <div>
@@ -337,6 +350,20 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
               </div>
 
               <div>
+                <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">Early Checkout Full-Day Cutoff</label>
+                <input
+                  type="time"
+                  value={policy.shift.minCheckoutForFullDay || '16:00'}
+                  onChange={(e) => setPolicy({
+                    ...policy,
+                    shift: { ...policy.shift, minCheckoutForFullDay: e.target.value }
+                  })}
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
+                />
+                <span className="text-[10px] text-slate-400 mt-1 block">Checkout after {policy.shift.minCheckoutForFullDay || '16:00'} is credited as Full Day (P)</span>
+              </div>
+
+              <div>
                 <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">Half-Day Threshold (Minutes)</label>
                 <input
                   type="number"
@@ -350,7 +377,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                   })}
                   className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
                 />
-                <span className="text-[10px] text-slate-400 mt-1 block">Working less than {policy.shift.halfDayThresholdMinutes / 60} hours marks Half-Day (P/2)</span>
+                <span className="text-[10px] text-slate-400 mt-1 block">Working &lt; {policy.shift.halfDayThresholdMinutes / 60}h is Absent; &ge; {policy.shift.halfDayThresholdMinutes / 60}h is Half-Day (P/2)</span>
               </div>
 
               <div>
@@ -428,6 +455,94 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                 <span className="text-[10px] text-slate-400 mt-1 block">
                   e.g. 1.5 = time-and-a-half. Applies company-wide unless an employee has a custom OT rate set on their profile.
                 </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Annual Leave Entitlements & Policy (SuperAdmin Controls) */}
+          <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-card space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-heading font-bold text-slate-900 flex items-center gap-2">
+                  <span>Annual Leave Entitlements & Quotas</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                    SuperAdmin Control
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Configure company annual leave quotas for all employees. Balances update dynamically in Employee Self-Service.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">
+                  Casual Leave (CL) Quota
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="60"
+                  value={policy.leaves?.casualLeave ?? 12}
+                  onChange={(e) => setPolicy({
+                    ...policy,
+                    leaves: {
+                      casualLeave: Number(e.target.value),
+                      sickLeave: policy.leaves?.sickLeave ?? 12,
+                      earnedLeave: policy.leaves?.earnedLeave ?? 15,
+                      compOff: policy.leaves?.compOff ?? 2,
+                    }
+                  })}
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
+                />
+                <span className="text-[10px] text-slate-400 mt-1 block">Annual days granted per employee</span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">
+                  Sick Leave (SL) Quota
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="60"
+                  value={policy.leaves?.sickLeave ?? 12}
+                  onChange={(e) => setPolicy({
+                    ...policy,
+                    leaves: {
+                      casualLeave: policy.leaves?.casualLeave ?? 12,
+                      sickLeave: Number(e.target.value),
+                      earnedLeave: policy.leaves?.earnedLeave ?? 15,
+                      compOff: policy.leaves?.compOff ?? 2,
+                    }
+                  })}
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
+                />
+                <span className="text-[10px] text-slate-400 mt-1 block">Annual medical/sick leave entitlement</span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">
+                  Earned Leave (EL) Quota
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="60"
+                  value={policy.leaves?.earnedLeave ?? 15}
+                  onChange={(e) => setPolicy({
+                    ...policy,
+                    leaves: {
+                      casualLeave: policy.leaves?.casualLeave ?? 12,
+                      sickLeave: policy.leaves?.sickLeave ?? 12,
+                      earnedLeave: Number(e.target.value),
+                      compOff: policy.leaves?.compOff ?? 2,
+                    }
+                  })}
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
+                />
+                <span className="text-[10px] text-slate-400 mt-1 block">Paid privilege/annual leaves</span>
               </div>
             </div>
           </div>

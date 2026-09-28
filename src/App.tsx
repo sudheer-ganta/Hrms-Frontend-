@@ -19,6 +19,8 @@ import { MyPortal } from './pages/MyPortal';
 import { SyncHistory } from './pages/SyncHistory';
 import { Settings } from './pages/Settings';
 import { UserManagement } from './pages/UserManagement';
+import { OTCalculator } from './pages/OTCalculator';
+import { Approvals } from './pages/Approvals';
 
 import { api } from './services/api';
 import { AttendanceSource } from './types';
@@ -93,7 +95,7 @@ const MainLayout: React.FC = () => {
           onOpenMobileMenu={() => setIsMobileSidebarOpen(true)}
         />
 
-        <main className="flex-1 p-4 md:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+        <main className="flex-1 p-3.5 sm:p-5 md:p-6 lg:p-8 w-full max-w-[1920px] mx-auto transition-all">
           <Routes>
             {/* Root route: Auto-switches based on Role */}
             <Route
@@ -133,6 +135,14 @@ const MainLayout: React.FC = () => {
 
             {/* Founder & Super Admin Management Routes */}
             <Route
+              path="/approvals"
+              element={
+                <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'FOUNDER']}>
+                  <Approvals />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/attendance"
               element={
                 <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'FOUNDER']}>
@@ -163,6 +173,19 @@ const MainLayout: React.FC = () => {
               element={
                 <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'FOUNDER']}>
                   <Employees
+                    sources={sources}
+                    activeSourceId={activeSourceId}
+                    onSelectSource={setActiveSourceId}
+                    onOpenSync={handleOpenSync}
+                  />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/ot-calculator"
+              element={
+                <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'FOUNDER']}>
+                  <OTCalculator
                     sources={sources}
                     activeSourceId={activeSourceId}
                     onSelectSource={setActiveSourceId}

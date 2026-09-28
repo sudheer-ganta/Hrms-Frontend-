@@ -58,9 +58,9 @@ export const AttendanceSummaryMetrics: React.FC<AttendanceSummaryMetricsProps> =
       borderHover: 'hover:border-brand-500',
     },
     {
-      label: 'Total Overtime & Late In',
-      value: totalOtHours,
-      subtext: `${summary.lateArrivalsCount.toLocaleString()} Late check-ins`,
+      label: 'Late Arrivals',
+      value: summary.lateArrivalsCount.toLocaleString(),
+      subtext: 'Late check-ins this period',
       icon: Timer,
       accent: 'bg-amber-100 text-amber-600',
       glow: 'from-amber-400/10 to-orange-500/20',

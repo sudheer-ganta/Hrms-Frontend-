@@ -14,6 +14,7 @@ import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { EmployeeProfile, EmployeePayrollSummary } from '../types';
 import { getCurrentMonthCalendarInfo } from '../lib/utils';
+import { EmployeePunchCard } from '../components/attendance/EmployeePunchCard';
 
 export const EmployeeDashboard: React.FC = () => {
   const { user } = useAuth();
@@ -190,7 +191,14 @@ export const EmployeeDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. Top Summary Metrics Grid */}
+      {/* 2. Live Geo-Punch Card (Server IST Enforced) */}
+      <EmployeePunchCard
+        empCode={empCode}
+        empName={employeeProfile?.name}
+        onPunchSuccess={loadEmployeeData}
+      />
+
+      {/* 3. Top Summary Metrics Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Today's Punch Card */}
         <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between">

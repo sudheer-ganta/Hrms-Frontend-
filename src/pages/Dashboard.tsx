@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StatsCards } from '../components/dashboard/StatsCards';
 import { LocationHealth } from '../components/dashboard/LocationHealth';
-import { RecentPunchesTable } from '../components/dashboard/RecentPunchesTable';
 import { AttendanceAnalyticsCharts } from '../components/dashboard/AttendanceAnalyticsCharts';
 import { LocationTabs } from '../components/layout/LocationTabs';
 import { ErrorAlert } from '../components/common/ErrorAlert';
@@ -75,11 +74,6 @@ export const Dashboard: React.FC<DashboardPageProps> = ({
   const handleSyncLocation = (sourceId: string) => {
     onOpenSync(sourceId);
   };
-
-  const filteredRecentPunches = stats?.recentPunches?.filter((p) => {
-    if (activeSourceId === 'all') return true;
-    return p.sourceId === activeSourceId;
-  }) || [];
 
   const formattedDateTitle = new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', {
     weekday: 'long',
@@ -258,13 +252,6 @@ export const Dashboard: React.FC<DashboardPageProps> = ({
         onSyncLocation={handleSyncLocation}
         isLoading={isLoading}
         selectedDate={selectedDate}
-      />
-
-      {/* Recent Swipes Table */}
-      <RecentPunchesTable
-        punches={filteredRecentPunches}
-        isLoading={isLoading}
-        onSyncTrigger={() => onOpenSync(activeSourceId !== 'all' ? activeSourceId : undefined)}
       />
     </div>
   );

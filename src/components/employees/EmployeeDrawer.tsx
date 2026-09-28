@@ -9,7 +9,7 @@ import {
   Edit3,
   DollarSign
 } from 'lucide-react';
-import { EmployeeTimesheet, InOutRecord, EmployeeProfile, EmployeePayrollSummary, CompanyHoliday } from '../../types';
+import { EmployeeTimesheet, InOutRecord, EmployeeProfile, EmployeePayrollSummary, CompanyHoliday, HRMSPolicySettings } from '../../types';
 import { api } from '../../services/api';
 import { EditEmployeeModal } from './EditEmployeeModal';
 import { PayslipModal } from '../payroll/PayslipModal';
@@ -43,6 +43,7 @@ export const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({
   const [fetchedRecords, setFetchedRecords] = useState<InOutRecord[]>([]);
   const [localTimesheet, setLocalTimesheet] = useState<EmployeeTimesheet | null>(null);
   const [holidays, setHolidays] = useState<CompanyHoliday[]>([]);
+  const [policySettings, setPolicySettings] = useState<HRMSPolicySettings | null>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
 
   // Calendar matrix is always "this month" — computed from the real date rather
@@ -72,20 +73,29 @@ export const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({
       })
       .catch(() => {});
 
-    // 3. Corporate Holidays List
+    // 3. Corporate Holidays List & Policy
     api.getPolicySettings()
       .then((pol) => {
-        if (isMounted && pol?.holidays) {
-          setHolidays(pol.holidays);
+        if (isMounted && pol) {
+          setPolicySettings(pol);
+          if (pol.holidays) setHolidays(pol.holidays);
         }
       })
       .catch(() => {});
 
     // 4. Employee-specific InOut Swipes
-    api.getInOutAttendance({ employeeCode: employee.employeeCode, limit: 100 })
+    api.getInOutAttendance({ 
+      employeeCode: employee.employeeCode, 
+      fromDate: calMonthStart,
+      toDate: calMonthEnd,
+      limit: 100 
+    })
       .then((res) => {
         if (isMounted && res.data) {
-          setFetchedRecords(res.data);
+          const monthRecords = (res.data || []).filter(
+            (r: any) => r.date >= calMonthStart && r.date <= calMonthEnd
+          );
+          setFetchedRecords(monthRecords);
         }
       })
       .catch(() => {})
@@ -111,7 +121,7 @@ export const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({
   if (!isOpen || !employee) return null;
 
   // Use fetched employee records or prop fallback
-  const employeeRecords = (fetchedRecords.length > 0 ? fetchedRecords : records.filter((r) => r.employeeCode === employee.employeeCode))
+  const employeeRecords = (fetchedRecords.length > 0 ? fetchedRecords : records.filter((r) => r.employeeCode === employee.employeeCode && r.date >= calMonthStart && r.date <= calMonthEnd))
     .sort((a, b) => b.date.localeCompare(a.date));
 
   // Compute stats
@@ -119,7 +129,6 @@ export const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({
   const totalLop = payrollSummary?.lopDays !== undefined ? payrollSummary.lopDays : (payrollSummary?.absentDays ?? (timesheet?.totalDaysAbsent ?? employeeRecords.filter((r) => r.status === 'A').length));
   const totalHalfDays = payrollSummary?.halfDays ?? employeeRecords.filter((r) => r.status === 'P/2' || r.status.includes('1/2')).length;
   const totalWorkHours = payrollSummary?.totalWorkHours ?? (timesheet?.totalWorkMinutes ? Number((timesheet.totalWorkMinutes / 60).toFixed(1)) : 0);
-  const totalOtHours = payrollSummary?.totalOtHours ?? (timesheet?.totalOvertimeMinutes ? Number((timesheet.totalOvertimeMinutes / 60).toFixed(1)) : 0);
   const attendanceRate = payrollSummary ? Math.round((payrollSummary.payableDays / (payrollSummary.monthDays || 30)) * 100) : 92;
 
   const initials = (profile?.name || employee.employeeName)
@@ -134,11 +143,11 @@ export const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({
     <>
       <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-200">
         <div 
-          className="w-full max-w-xl bg-white h-full shadow-2xl flex flex-col justify-between overflow-hidden animate-in slide-in-from-right duration-300 border-l border-slate-200"
+          className="w-full sm:max-w-xl md:max-w-2xl lg:max-w-2xl bg-white h-full shadow-2xl flex flex-col justify-between overflow-hidden animate-in slide-in-from-right duration-300 border-l border-slate-200"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Top Header */}
-          <div className="p-6 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-sky-50/30">
+          <div className="p-4 sm:p-6 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-sky-50/30">
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3.5">
                 <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-[#1184b0] to-[#011638] text-white flex items-center justify-center font-heading font-extrabold text-base shadow-md shadow-brand-500/20">
@@ -205,29 +214,36 @@ export const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({
             </div>
 
             {/* KPI Mini-Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-4">
-              <div className="p-3 bg-white rounded-xl border border-slate-200/80 shadow-xs text-center">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Payable (MTD)</span>
-                <span className="text-base font-extrabold font-heading text-emerald-600 mt-0.5 block">{totalPresent}d</span>
-                <span className="text-[9px] text-slate-400 font-medium block">out of {payrollSummary?.monthDays || 25}d</span>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-4">
+              <div className="p-2.5 bg-white rounded-xl border border-slate-200/80 shadow-xs text-center">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Payable</span>
+                <span className="text-sm font-extrabold font-heading text-emerald-600 mt-0.5 block">{totalPresent}d</span>
+                <span className="text-[9px] text-slate-400 font-medium block">of {payrollSummary?.monthDays || 25}d</span>
               </div>
-              <div className="p-3 bg-white rounded-xl border border-slate-200/80 shadow-xs text-center">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">LOP / Absent</span>
-                <span className="text-base font-extrabold font-heading text-rose-600 mt-0.5 block">{totalLop}d</span>
+              <div className="p-2.5 bg-white rounded-xl border border-slate-200/80 shadow-xs text-center">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">LOP</span>
+                <span className="text-sm font-extrabold font-heading text-rose-600 mt-0.5 block">{totalLop}d</span>
                 <span className="text-[9px] text-slate-400 font-medium block">Loss of Pay</span>
               </div>
-              <div className="p-3 bg-white rounded-xl border border-slate-200/80 shadow-xs text-center">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Overtime (OT)</span>
-                <span className="text-base font-extrabold font-heading text-indigo-600 mt-0.5 block">+{totalOtHours}h</span>
+              <div className="p-2.5 bg-white rounded-xl border border-slate-200/80 shadow-xs text-center">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Work Hrs</span>
+                <span className="text-sm font-extrabold font-heading text-indigo-600 mt-0.5 block">{totalWorkHours}h</span>
+                <span className="text-[9px] text-slate-400 font-medium block">Regular</span>
+              </div>
+              <div className="p-2.5 bg-white rounded-xl border border-slate-200/80 shadow-xs text-center">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">OT Hours</span>
+                <span className="text-sm font-extrabold font-heading text-violet-600 mt-0.5 block">{payrollSummary?.totalOtHours || 0}h</span>
+                <span className="text-[9px] text-violet-600 font-semibold block">{payrollSummary && payrollSummary.otEarnings > 0 ? `+₹${payrollSummary.otEarnings.toLocaleString('en-IN')}` : '0 OT'}</span>
               </div>
               {/* Est Net Pay Card */}
-              <div className="p-3 bg-white rounded-xl border border-slate-200/80 shadow-xs text-center">
+              <div className="p-2.5 bg-white rounded-xl border border-slate-200/80 shadow-xs text-center col-span-2 sm:col-span-1">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Est. Net Pay</span>
-                <span className="text-base font-extrabold font-heading text-[#1184b0] mt-0.5 block">
+                <span className="text-sm font-extrabold font-heading text-[#1184b0] mt-0.5 block">
                   {payrollSummary && payrollSummary.monthlyCtc > 0 && payrollSummary.netPayable > 0
                     ? `₹${payrollSummary.netPayable.toLocaleString('en-IN')}`
                     : '—'}
                 </span>
+                <span className="text-[9px] text-emerald-600 font-semibold block">Take-Home</span>
               </div>
             </div>
 
@@ -273,7 +289,7 @@ export const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({
           </div>
 
           {/* Scrollable Tab Body */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-5">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-5">
             {/* TAB 1: OVERVIEW */}
             {activeTab === 'overview' && (
               <div className="space-y-5">
@@ -323,20 +339,26 @@ export const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({
                       </span>
                       <span className="text-[11px] font-bold text-sky-700">{payrollSummary.month}</span>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
                       <div className="bg-white p-2.5 rounded-xl border border-sky-100">
                         <span className="text-[10px] text-slate-400 block">Payable / Total Days</span>
                         <span className="font-extrabold text-slate-800">{payrollSummary.payableDays} / {payrollSummary.monthDays} Days</span>
                       </div>
                       <div className="bg-white p-2.5 rounded-xl border border-sky-100">
-                        <span className="text-[10px] text-slate-400 block">Overtime Added</span>
-                        <span className="font-extrabold text-emerald-600">+₹{payrollSummary.otEarnings} ({payrollSummary.totalOtHours}h)</span>
+                        <span className="text-[10px] text-slate-400 block">Work Hours</span>
+                        <span className="font-extrabold text-emerald-600">{payrollSummary.totalWorkHours}h</span>
+                      </div>
+                      <div className="bg-white p-2.5 rounded-xl border border-sky-100">
+                        <span className="text-[10px] text-slate-400 block">Overtime (OT)</span>
+                        <span className="font-extrabold text-violet-600">
+                          {payrollSummary.totalOtHours}h {payrollSummary.otEarnings > 0 ? `(+₹${payrollSummary.otEarnings.toLocaleString('en-IN')})` : ''}
+                        </span>
                       </div>
                       <div className="bg-white p-2.5 rounded-xl border border-sky-100">
                         <span className="text-[10px] text-slate-400 block">Loss of Pay (LOP)</span>
                         <span className="font-extrabold text-rose-600">-₹{payrollSummary.lopDeduction} ({payrollSummary.lopDays}d)</span>
                       </div>
-                      <div className="bg-white p-2.5 rounded-xl border border-sky-100">
+                      <div className="bg-white p-2.5 rounded-xl border border-sky-100 sm:col-span-2">
                         <span className="text-[10px] text-slate-400 block">Take-Home Salary</span>
                         <span className="font-extrabold text-[#1184b0] text-sm">₹{payrollSummary.netPayable.toLocaleString('en-IN')}</span>
                       </div>
@@ -379,8 +401,34 @@ export const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({
                   </div>
                 ) : (
                   employeeRecords.map((rec, idx) => {
+                    const holidayMatch = holidays.find((h) => h.date === rec.date);
+                    const isHoliday = Boolean(holidayMatch) || rec.status === 'HL' || rec.status === 'H';
+                    const isSunday = new Date(rec.date + 'T00:00:00').getDay() === 0 || rec.status === 'W' || rec.status === 'WO';
                     const isPresent = rec.status === 'P';
                     const isHalf = rec.status === 'P/2' || rec.status.includes('1/2');
+                    const hasIn = Boolean(rec.inTime && rec.inTime !== '--:--');
+                    const hasOut = Boolean(rec.outTime && rec.outTime !== '--:--');
+                    const isForgotSwipe = !isHoliday && !isSunday && rec.status === 'A' && hasIn !== hasOut;
+
+                    let badgeColor = 'bg-rose-100 text-rose-700 border-rose-200';
+                    let badgeText = rec.status || 'A';
+
+                    if (isHoliday) {
+                      badgeColor = 'bg-purple-100 text-purple-700 border-purple-200';
+                      badgeText = 'HL';
+                    } else if (isSunday) {
+                      badgeColor = 'bg-slate-100 text-slate-600 border-slate-200';
+                      badgeText = 'WO';
+                    } else if (isForgotSwipe) {
+                      badgeColor = 'bg-orange-100 text-orange-800 border-orange-200';
+                      badgeText = 'FS';
+                    } else if (isPresent) {
+                      badgeColor = 'bg-emerald-100 text-emerald-700 border-emerald-200';
+                      badgeText = 'P';
+                    } else if (isHalf) {
+                      badgeColor = 'bg-amber-100 text-amber-700 border-amber-200';
+                      badgeText = 'P/2';
+                    }
 
                     return (
                       <div
@@ -389,15 +437,9 @@ export const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({
                       >
                         <div className="flex items-center gap-3">
                           <div
-                            className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs ${
-                              isPresent
-                                ? 'bg-emerald-100 text-emerald-700'
-                                : isHalf
-                                ? 'bg-amber-100 text-amber-700'
-                                : 'bg-rose-100 text-rose-700'
-                            }`}
+                            className={`w-8 h-8 rounded-xl border flex items-center justify-center font-bold text-xs ${badgeColor}`}
                           >
-                            {rec.status || (isPresent ? 'P' : 'A')}
+                            {badgeText}
                           </div>
                           <div>
                             <div className="flex items-center gap-2">
@@ -408,7 +450,22 @@ export const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({
                                   day: 'numeric',
                                 })}
                               </span>
-                              {rec.lateIn && rec.lateIn !== '00:00' && (
+                              {isHoliday && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200">
+                                  {holidayMatch?.name || 'Corporate Holiday'}
+                                </span>
+                              )}
+                              {isSunday && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-50 text-slate-600 border border-slate-200">
+                                  Weekly Off
+                                </span>
+                              )}
+                              {isForgotSwipe && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-orange-50 text-orange-800 border border-orange-200">
+                                  Missed Swipe
+                                </span>
+                              )}
+                              {rec.lateIn && rec.lateIn !== '00:00' && !isHoliday && !isSunday && (
                                 <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
                                   Late: {rec.lateIn}
                                 </span>
@@ -478,14 +535,33 @@ export const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({
                     const holidayMatch = holidays.find((h) => h.date === dateStr);
                     const isHoliday = Boolean(holidayMatch);
 
-                    const isPresent = !isSunday && !isHoliday && (record?.status === 'P' || (record && record.inTime && record.inTime !== '--:--' && record.status !== 'A'));
-                    const isHalf = !isSunday && !isHoliday && (record?.status === 'P/2' || (record && record.workMinutes && record.workMinutes >= 240 && record.workMinutes < 480));
+                    const fullDayMin = policySettings?.shift?.fullDayThresholdMinutes || 360;
+                    const halfDayMin = policySettings?.shift?.halfDayThresholdMinutes || 180;
+                    const minCheckout = policySettings?.shift?.minCheckoutForFullDay || '16:00';
+
+                    const workMin = record?.workMinutes || 0;
+                    const outTimeStr = (record?.outTime && record.outTime !== '--:--') ? record.outTime.slice(0, 5) : '';
+                    const meetsFullDayCheckout = Boolean(outTimeStr && outTimeStr >= minCheckout && workMin >= halfDayMin);
+                    const isFullWork = workMin >= fullDayMin || meetsFullDayCheckout;
+
                     const hasIn = Boolean(record?.inTime && record.inTime !== '--:--');
                     const hasOut = Boolean(record?.outTime && record.outTime !== '--:--');
-                    // Marked absent but exactly one punch exists — they were here, a
-                    // swipe just got missed, so it shouldn't look like a genuine no-show.
-                    const isForgotSwipe = !isSunday && !isHoliday && record?.status === 'A' && hasIn !== hasOut;
-                    const isAbsent = !isSunday && !isHoliday && !isFuture && (!record || record.status === 'A') && !isForgotSwipe;
+                    const isForgotSwipe = !isSunday && !isHoliday && record?.status === 'A' && hasIn !== hasOut && !isFullWork;
+
+                    const isPresent = !isSunday && !isHoliday && (
+                      record?.status === 'P' || 
+                      record?.status === 'PRESENT' || 
+                      isFullWork || 
+                      (record && record.inTime && record.inTime !== '--:--' && record.status !== 'A' && isFullWork)
+                    );
+
+                    const isHalf = !isSunday && !isHoliday && !isPresent && !isForgotSwipe && (
+                      record?.status === 'P/2' || 
+                      record?.status === 'HALF' || 
+                      (record && workMin >= halfDayMin)
+                    );
+
+                    const isAbsent = !isSunday && !isHoliday && !isFuture && (!record || record.status === 'A' || (record && workMin < halfDayMin && !hasIn)) && !isForgotSwipe && !isHalf && !isPresent;
 
                     let bgClass = 'bg-slate-50 border-slate-200 text-slate-500';
                     let label = '—';
@@ -499,18 +575,18 @@ export const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({
                       bgClass = 'bg-slate-100/80 border-slate-200 text-slate-500 font-semibold';
                       label = 'WO';
                       subtext = 'Sunday';
-                    } else if (isPresent) {
-                      bgClass = 'bg-emerald-500 border-emerald-600 text-white font-bold shadow-xs';
-                      label = 'P';
-                      subtext = record?.workTime || 'Present';
-                    } else if (isHalf) {
-                      bgClass = 'bg-amber-400 border-amber-500 text-slate-950 font-bold shadow-xs';
-                      label = 'P/2';
-                      subtext = 'Half Day';
                     } else if (isForgotSwipe) {
                       bgClass = 'bg-orange-400 border-orange-500 text-slate-950 font-bold shadow-xs';
                       label = 'FS';
                       subtext = `Forgot ${hasIn ? 'Check-Out' : 'Check-In'}`;
+                    } else if (isHalf) {
+                      bgClass = 'bg-amber-400 border-amber-500 text-slate-950 font-bold shadow-xs';
+                      label = 'P/2';
+                      subtext = 'Half Day';
+                    } else if (isPresent) {
+                      bgClass = 'bg-emerald-500 border-emerald-600 text-white font-bold shadow-xs';
+                      label = 'P';
+                      subtext = record?.workTime || 'Present';
                     } else if (isAbsent) {
                       bgClass = 'bg-rose-500 border-rose-600 text-white font-bold shadow-xs';
                       label = 'A';

@@ -256,8 +256,8 @@ export const TimesheetMatrix: React.FC<TimesheetMatrixProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs font-medium text-slate-700">
-              {timesheets.map((sheet) => (
-                <tr key={`${sheet.sourceId}_${sheet.employeeCode}`} className="hover:bg-slate-50/80 group">
+              {timesheets.map((sheet, idx) => (
+                <tr key={`${sheet.sourceId}_${sheet.employeeCode}_${idx}`} className="hover:bg-slate-50/80 group">
                   {/* Fixed Opaque Sticky Employee Cell with click to open drawer */}
                   <td 
                     onClick={() => setSelectedEmployeeForDrawer(sheet)}
@@ -352,22 +352,15 @@ export const TimesheetMatrix: React.FC<TimesheetMatrixProps> = ({
                     </div>
 
                     <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                      <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider flex items-center gap-1">
-                        <Timer className="w-3.5 h-3.5 text-violet-600" /> Overtime
+                      <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider block">
+                        Late Arrival
                       </span>
-                      <span className="text-base font-mono font-bold text-violet-700 mt-1 block">
-                        {selectedDayDetail.dayData.overTime || '00:00'}
+                      <span className="text-sm font-mono font-bold text-amber-700 mt-1 block">
+                        {selectedDayDetail.dayData.lateIn && selectedDayDetail.dayData.lateIn !== '00:00'
+                          ? `+${selectedDayDetail.dayData.lateIn}`
+                          : 'On Time (00:00)'}
                       </span>
                     </div>
-                  </div>
-
-                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
-                    <span className="text-slate-600 font-medium">Late Arrival:</span>
-                    <span className="font-mono font-bold text-amber-700">
-                      {selectedDayDetail.dayData.lateIn && selectedDayDetail.dayData.lateIn !== '00:00'
-                        ? `+${selectedDayDetail.dayData.lateIn}`
-                        : 'On Time (00:00)'}
-                    </span>
                   </div>
 
                   <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">

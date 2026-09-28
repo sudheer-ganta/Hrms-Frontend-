@@ -114,6 +114,27 @@ export const api = {
     return res.data;
   },
 
+  // Employee Geo-Punch (Check-In & Check-Out with Server IST Enforcement)
+  getTodayPunchStatus: async (empCode?: string): Promise<any> => {
+    const res = await apiClient.get<{ success: boolean; data: any }>('/attendance/punch/today', {
+      params: empCode ? { empCode } : {},
+    });
+    return res.data.data;
+  },
+
+  recordPunch: async (payload: {
+    empCode?: string;
+    punchType?: 'IN' | 'OUT' | 'AUTO';
+    latitude?: number;
+    longitude?: number;
+    accuracy?: number;
+    address?: string;
+    notes?: string;
+  }): Promise<any> => {
+    const res = await apiClient.post<{ success: boolean; data: any; message: string }>('/attendance/punch', payload);
+    return res.data;
+  },
+
   // API 2 Sync
   syncSource: async (
     sourceId: string,
@@ -228,6 +249,32 @@ export const api = {
     return res.data.data;
   },
 
+  // Payroll & Overtime Adjustments
+  getPayrollAdjustments: async (
+    month: string
+  ): Promise<Record<string, { otHours?: number; totalWorkHours?: number; multiplier?: number }>> => {
+    const res = await apiClient.get<{
+      success: boolean;
+      data: Record<string, { otHours?: number; totalWorkHours?: number; multiplier?: number }>;
+    }>(`/payroll/adjustments/${month}`);
+    return res.data.data || {};
+  },
+
+  savePayrollAdjustments: async (
+    month: string,
+    adjustments: Record<string, { otHours?: number; totalWorkHours?: number; multiplier?: number }>
+  ): Promise<{ success: boolean; message: string }> => {
+    const res = await apiClient.post<{ success: boolean; message: string }>(`/payroll/adjustments/${month}`, {
+      adjustments,
+    });
+    return res.data;
+  },
+
+  clearPayrollAdjustments: async (month: string): Promise<{ success: boolean; message: string }> => {
+    const res = await apiClient.delete<{ success: boolean; message: string }>(`/payroll/adjustments/${month}`);
+    return res.data;
+  },
+
   sendPayslipEmail: async (payload: {
     empCode: string;
     month?: string;
@@ -279,10 +326,11 @@ export const api = {
     return res.data.data;
   },
 
-  updateRequestStatus: async (id: string, status: 'APPROVED' | 'REJECTED', reviewComment?: string): Promise<AttendanceRegularizationRequest> => {
+  updateRequestStatus: async (id: string, status: 'APPROVED' | 'REJECTED', reviewComment?: string, reviewedBy?: string): Promise<AttendanceRegularizationRequest> => {
     const res = await apiClient.patch<{ success: boolean; data: AttendanceRegularizationRequest }>(`/requests/${id}/status`, {
       status,
       reviewComment,
+      reviewedBy,
     });
     return res.data.data;
   },

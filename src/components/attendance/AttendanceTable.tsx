@@ -60,9 +60,9 @@ export const AttendanceTable: React.FC<AttendanceTableProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-                {records.map((record) => (
+                {records.map((record, idx) => (
                   <tr
-                    key={record._id || record.vendorRecordHash}
+                    key={record._id || record.vendorRecordHash || `${record.sourceId}_${record.employeeCode}_${idx}`}
                     className="hover:bg-slate-50/80 transition-all group"
                   >
                     <td className="py-3.5 px-4 font-mono font-bold text-brand-600">

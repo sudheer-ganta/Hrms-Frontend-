@@ -118,10 +118,8 @@ export const Employees: React.FC<EmployeesPageProps> = ({
       'Basic Salary (₹)',
       'HRA (₹)',
       'Special Allowances (₹)',
-      'Overtime Eligible',
       'Payable Days (This Month)',
       'LOP Days',
-      'Overtime Hours',
       'Estimated Net Pay (₹)',
       'Bank Account Number',
       'Bank IFSC Code',
@@ -144,10 +142,8 @@ export const Employees: React.FC<EmployeesPageProps> = ({
         emp.basicSalary || '',
         emp.hra || '',
         emp.specialAllowance || '',
-        emp.otEligible ? 'Yes' : 'No',
         ps?.payableDays ?? '—',
         ps?.lopDays ?? '—',
-        ps?.totalOtHours ? `+${ps.totalOtHours}h` : '0h',
         emp.monthlyCtc ? (ps?.netPayable ?? emp.totalNetSalary ?? emp.monthlyCtc) : '',
         emp.bankAccount || '—',
         emp.ifscCode || '—',
@@ -372,11 +368,6 @@ export const Employees: React.FC<EmployeesPageProps> = ({
                             <span className="font-bold text-emerald-600 text-xs block">
                               ₹{netPay.toLocaleString('en-IN')}
                             </span>
-                            {ps && ps.totalOtHours > 0 && (
-                              <span className="text-[10px] text-indigo-600 font-semibold block mt-0.5">
-                                +{ps.totalOtHours}h OT
-                              </span>
-                            )}
                           </div>
                         ) : (
                           <span className="text-slate-400 italic text-[11px]">—</span>

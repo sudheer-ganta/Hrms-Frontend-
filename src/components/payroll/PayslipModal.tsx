@@ -227,7 +227,7 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
                 <h4 className="text-xs font-bold uppercase tracking-wider text-sky-900 mb-2.5 flex items-center gap-1.5">
                   <Calendar className="w-3.5 h-3.5 text-[#1184b0]" /> Monthly Attendance & Overtime Summary
                 </h4>
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center text-xs">
+                <div className="grid grid-cols-3 sm:grid-cols-7 gap-2 text-center text-xs">
                   <div className="bg-white p-2 rounded-lg border border-sky-100">
                     <span className="text-[10px] text-slate-500 block uppercase font-medium">Month Days</span>
                     <span className="font-bold text-slate-800 text-sm">{summary.monthDays}</span>
@@ -249,8 +249,12 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
                     <span className="font-bold text-[#1184b0] text-sm">{summary.payableDays}</span>
                   </div>
                   <div className="bg-white p-2 rounded-lg border border-sky-100">
-                    <span className="text-[10px] text-slate-500 block uppercase font-medium">Overtime (OT)</span>
-                    <span className="font-bold text-indigo-600 text-sm">+{summary.totalOtHours}h</span>
+                    <span className="text-[10px] text-slate-500 block uppercase font-medium">Work Hours</span>
+                    <span className="font-bold text-indigo-600 text-sm">{summary.totalWorkHours}h</span>
+                  </div>
+                  <div className="bg-white p-2 rounded-lg border border-sky-100">
+                    <span className="text-[10px] text-slate-500 block uppercase font-medium">OT Hours</span>
+                    <span className="font-bold text-violet-600 text-sm">{summary.totalOtHours}h</span>
                   </div>
                 </div>
               </div>
@@ -276,10 +280,15 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
                       <span className="text-slate-600">Special Allowance (C2)</span>
                       <span className="font-semibold text-slate-800">₹{summary.allowances.toLocaleString('en-IN')}</span>
                     </div>
-                    {summary.totalOtHours > 0 && (
-                      <div className="flex justify-between pt-1.5 text-indigo-600 bg-indigo-50/50 -mx-3 px-3 py-1">
-                        <span className="font-medium">Overtime Pay ({summary.totalOtHours} hrs @ ₹{summary.otRatePerHour}/h)</span>
-                        <span className="font-bold">+₹{summary.otEarnings.toLocaleString('en-IN')}</span>
+                    {summary.otEarnings > 0 && (
+                      <div className="flex justify-between pt-1.5 text-violet-700 font-semibold">
+                        <span className="flex items-center gap-1">
+                          Overtime Pay (OT)
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-100 font-mono">
+                            {summary.totalOtHours}h @ ₹{summary.otRatePerHour}/h
+                          </span>
+                        </span>
+                        <span>+₹{summary.otEarnings.toLocaleString('en-IN')}</span>
                       </div>
                     )}
                     <div className="flex justify-between pt-2 border-t-2 border-slate-200 font-bold text-slate-900">
@@ -303,7 +312,7 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
                       </div>
                     )}
                     <div className="flex justify-between pt-1.5">
-                      <span className="text-slate-600">Employee PF (E)</span>
+                      <span className="text-slate-600">Employee PF (E - 12%)</span>
                       <span className="font-semibold text-slate-800">
                         {summary.pfDeduction > 0 ? `₹${summary.pfDeduction.toLocaleString('en-IN')}` : `₹${Math.min(1800, Math.round(summary.basicSalary * 0.12)).toLocaleString('en-IN')}`}
                       </span>
@@ -325,6 +334,19 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
                       <span>-₹{summary.totalDeductions.toLocaleString('en-IN')}</span>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* Employer Contributions & CTC Summary (Annexure K Statutory) */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-4 text-slate-600">
+                  <span>Employer PF (H): <strong className="text-slate-900 font-mono">₹{(summary.employerPf ?? summary.pfDeduction ?? 1800).toLocaleString('en-IN')}</strong></span>
+                  <span>•</span>
+                  <span>Employer ESIC (I): <strong className="text-slate-900 font-mono">{summary.employerEsic && summary.employerEsic > 0 ? `₹${summary.employerEsic.toLocaleString('en-IN')}` : '—'}</strong></span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Total Monthly CTC (Cost to Company)</span>
+                  <span className="font-mono font-extrabold text-slate-900 text-sm">₹{summary.monthlyCtc.toLocaleString('en-IN')} / month</span>
                 </div>
               </div>
 
