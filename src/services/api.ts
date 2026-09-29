@@ -252,22 +252,33 @@ export const api = {
   // Payroll & Overtime Adjustments
   getPayrollAdjustments: async (
     month: string
-  ): Promise<Record<string, { otHours?: number; totalWorkHours?: number; multiplier?: number }>> => {
+  ): Promise<Record<string, { otHours?: number; totalWorkHours?: number; multiplier?: number; sundayDays?: number }>> => {
     const res = await apiClient.get<{
       success: boolean;
-      data: Record<string, { otHours?: number; totalWorkHours?: number; multiplier?: number }>;
+      data: Record<string, { otHours?: number; totalWorkHours?: number; multiplier?: number; sundayDays?: number }>;
     }>(`/payroll/adjustments/${month}`);
     return res.data.data || {};
   },
 
   savePayrollAdjustments: async (
     month: string,
-    adjustments: Record<string, { otHours?: number; totalWorkHours?: number; multiplier?: number }>
+    adjustments: Record<string, { otHours?: number; totalWorkHours?: number; multiplier?: number; sundayDays?: number }>
   ): Promise<{ success: boolean; message: string }> => {
     const res = await apiClient.post<{ success: boolean; message: string }>(`/payroll/adjustments/${month}`, {
       adjustments,
     });
     return res.data;
+  },
+
+  // Prices UNSAVED OT Calculator edits through the backend payroll engine (nothing is persisted).
+  previewPayroll: async (
+    month: string,
+    adjustments: Record<string, { otHours?: number; totalWorkHours?: number; multiplier?: number; sundayDays?: number }>
+  ): Promise<EmployeePayrollSummary[]> => {
+    const res = await apiClient.post<{ success: boolean; data: EmployeePayrollSummary[] }>(`/payroll/preview/${month}`, {
+      adjustments,
+    });
+    return res.data.data;
   },
 
   clearPayrollAdjustments: async (month: string): Promise<{ success: boolean; message: string }> => {

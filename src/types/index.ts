@@ -216,6 +216,7 @@ export interface ShiftConfig {
 
 export interface OvertimeConfig {
   enabled: boolean;
+  hoursPerDay: number; // global OT standard hours/day (wage divisor), default 8
 }
 
 export interface LeaveQuotaConfig {
@@ -270,9 +271,11 @@ export interface EmployeeProfile {
   monthlyCtc?: number; // Total Gross CTC (L) PM
   annualCtc?: number; // Total Gross CTC (L) PA
   basicSalary?: number; // Basic (A) PM
+  da?: number; // Dearness Allowance PM (OT wage base = Basic + DA)
   fixedSalary?: number; // Fixed Salary (B) PM
   hra?: number; // HRA (C1) PM
   specialAllowance?: number; // Special Allowance (C2) PM
+  otherAllowance?: number; // Others / Other Allowance PM (part of Gross)
   grossSalary?: number; // Gross Salary (D) PM
   employeePf?: number; // Employee PF (E) PM
   employeeEsic?: number; // Employee ESIC (F) PM
@@ -324,8 +327,17 @@ export interface EmployeePayrollSummary {
   grossSalary?: number;
   employerPf?: number;
   employerEsic?: number;
+  da?: number;
+  otWageBase?: number; // Basic + DA
+  otDailyWage?: number;
+  otHourlyWage?: number;
+  otHoursPerDay?: number;
+  otEligible?: boolean;
+  otMultiplier?: number;
   otRatePerHour: number;
   otEarnings: number;
+  sundayDays?: number;
+  sundayEarnings?: number;
   grossEarnings: number;
   lopDeduction: number;
   pfDeduction: number;

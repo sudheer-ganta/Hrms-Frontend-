@@ -291,6 +291,17 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
                         <span>+₹{summary.otEarnings.toLocaleString('en-IN')}</span>
                       </div>
                     )}
+                    {(summary.sundayEarnings ?? 0) > 0 && (
+                      <div className="flex justify-between pt-1.5 text-violet-700 font-semibold">
+                        <span className="flex items-center gap-1">
+                          Sunday Working
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-100 font-mono">
+                            {summary.sundayDays} day(s) @ 2x
+                          </span>
+                        </span>
+                        <span>+₹{(summary.sundayEarnings ?? 0).toLocaleString('en-IN')}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between pt-2 border-t-2 border-slate-200 font-bold text-slate-900">
                       <span>Gross Salary (D)</span>
                       <span>₹{summary.grossEarnings.toLocaleString('en-IN')}</span>

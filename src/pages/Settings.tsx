@@ -434,6 +434,27 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                 </span>
               </div>
 
+              <div>
+                <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">OT Standard Hours per Day</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="24"
+                  step="0.5"
+                  value={policy.overtime.hoursPerDay ?? 8}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    setPolicy({
+                      ...policy,
+                      overtime: { ...policy.overtime, hoursPerDay: !isNaN(val) && val > 0 ? val : 8 }
+                    });
+                  }}
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 focus:ring-2 focus:ring-brand-500 outline-none"
+                />
+                <span className="text-[10px] text-slate-400 mt-1 block">
+                  Global. OT hourly rate = (Basic + DA) / 26 / this value (default 8).
+                </span>
+              </div>
             </div>
           </div>
 

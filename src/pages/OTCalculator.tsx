@@ -4,7 +4,6 @@ import { TableSkeleton } from '../components/common/TableSkeleton';
 import { EmptyState } from '../components/common/EmptyState';
 import { api } from '../services/api';
 import { AttendanceSource, EmployeePayrollSummary } from '../types';
-import { getShiftStandardHours } from '../lib/utils';
 import {
   Calculator,
   Search,
@@ -28,12 +27,18 @@ interface OTCalculatorProps {
 }
 
 // Generate month options (current + 11 previous months)
+// Month keys are built from LOCAL year/month. Using toISOString() shifts the
+// month back by one in timezones ahead of UTC (e.g. IST), because local midnight
+// on the 1st is still the previous day in UTC.
+const toMonthKey = (d: Date): string =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+
 const generateMonthOptions = (): { value: string; label: string }[] => {
   const months: { value: string; label: string }[] = [];
   const now = new Date();
   for (let i = 0; i < 12; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const value = d.toISOString().slice(0, 7);
+    const value = toMonthKey(d);
     const label = d.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
     months.push({ value, label });
   }
@@ -44,13 +49,17 @@ interface OTRow {
   empCode: string;
   name: string;
   location: string;
-  baseSalary: number; // monthly CTC
+  baseSalary: number; // monthly CTC (display only, NOT the OT wage base)
+  otWageBase: number; // Basic + DA
+  hoursPerDay: number; // global OT policy hours/day
+  otEligible: boolean;
   grossSalary: number;
   totalDeductions: number;
   lopDeduction: number;
   pfDeduction: number;
   ptDeduction: number;
   baseNetPay: number; // Net take-home before OT
+  netPayable: number; // Backend net pay incl. OT + Sunday
   monthDays: number;
   payableDays: number;
   lopDays: number;
@@ -58,34 +67,25 @@ interface OTRow {
   presentDays: number;
   multiplier: number; // editable
   otHours: number; // editable
+  sundayDays: number; // editable (fractional allowed)
+  otAmount: number;
+  sundayAmount: number;
   standardDailyWage: number;
   standardHourlyWage: number;
   isWorkHoursOverridden: boolean;
   isOtOverridden: boolean;
   isMultiplierOverridden: boolean;
+  isSundayOverridden: boolean;
 }
 
-// All formulas — aligned with the server statutory payroll engine.
-// standardHoursPerDay is derived dynamically from the configured shift
-// start/end time (see getShiftStandardHours in lib/utils) rather than a
-// hardcoded assumption, so this always agrees with payroll.service.ts.
-const calcStandardDailyWage = (baseSalary: number) =>
-  Math.round((baseSalary / 26) * 100) / 100;
+// The screen does NOT calculate OT or Sunday pay. Every OT / Sunday / net figure shown
+// comes from the backend payroll engine (payroll.service.ts): the saved values from
+// /payroll/all, and, while the user has unsaved edits, a read-only pricing of those
+// edits from /payroll/preview (same engine, nothing persisted).
+const calcFinalNetPay = (netPayable: number) => Math.round(netPayable);
 
-const calcStandardHourlyWage = (baseSalary: number, standardHoursPerDay: number) =>
-  Math.round((baseSalary / (26 * standardHoursPerDay)) * 100) / 100;
-
-const calcOtHours = (totalWorkHours: number, presentDays: number, standardHoursPerDay: number) => {
-  const expected = presentDays * standardHoursPerDay;
-  const ot = totalWorkHours - expected;
-  return ot > 0 ? Math.round(ot * 10) / 10 : 0;
-};
-
-const calcOtAmount = (otHours: number, standardHourlyWage: number, multiplier: number) =>
-  Math.round(otHours * standardHourlyWage * multiplier);
-
-const calcFinalNetPay = (baseNetPay: number, otAmount: number) =>
-  baseNetPay + otAmount;
+// Display-only: tidy float noise when summing already-backend-priced column totals.
+const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export const OTCalculator: React.FC<OTCalculatorProps> = ({
   sources,
@@ -98,25 +98,16 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
-  const [globalMultiplier, setGlobalMultiplier] = useState<number>(2);
+  const [selectedMonth, setSelectedMonth] = useState(toMonthKey(new Date()));
+  const [globalMultiplier, setGlobalMultiplier] = useState<number | null>(null); // null = each employee's backend multiplier (default 2x)
   const [rowMultipliers, setRowMultipliers] = useState<Record<string, number>>({});
   const [rowWorkHours, setRowWorkHours] = useState<Record<string, number>>({});
   const [rowOtHours, setRowOtHours] = useState<Record<string, number>>({});
+  const [rowSundayDays, setRowSundayDays] = useState<Record<string, number>>({});
   const [isMonthOpen, setIsMonthOpen] = useState(false);
-  const [standardHoursPerDay, setStandardHoursPerDay] = useState<number>(8);
+  const [preview, setPreview] = useState<Record<string, EmployeePayrollSummary>>({});
 
   const monthOptions = useMemo(() => generateMonthOptions(), []);
-
-  useEffect(() => {
-    api.getPolicySettings()
-      .then((policy) => {
-        setStandardHoursPerDay(getShiftStandardHours(policy.shift.startTime, policy.shift.endTime));
-      })
-      .catch(() => {
-        // Keep the 8h fallback if settings can't be loaded
-      });
-  }, []);
 
   const loadPayroll = useCallback(async () => {
     setIsLoading(true);
@@ -132,16 +123,19 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
       const initMult: Record<string, number> = {};
       const initWork: Record<string, number> = {};
       const initOt: Record<string, number> = {};
+      const initSun: Record<string, number> = {};
 
       Object.entries(adj || {}).forEach(([emp, val]: [string, any]) => {
         if (val.multiplier !== undefined) initMult[emp] = val.multiplier;
         if (val.totalWorkHours !== undefined) initWork[emp] = val.totalWorkHours;
         if (val.otHours !== undefined) initOt[emp] = val.otHours;
+        if (val.sundayDays !== undefined) initSun[emp] = val.sundayDays;
       });
 
       setRowMultipliers(initMult);
       setRowWorkHours(initWork);
       setRowOtHours(initOt);
+      setRowSundayDays(initSun);
     } catch (err) {
       console.error('Failed to load payroll data', err);
       setSummaries([]);
@@ -153,6 +147,51 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
   useEffect(() => {
     loadPayroll();
   }, [loadPayroll]);
+
+  // Draft adjustments = every edit currently on screen (including values loaded from the
+  // saved adjustments). Priced by the backend engine so the screen never re-derives them.
+  const draftAdjustments = useMemo(() => {
+    const draft: Record<string, { otHours?: number; totalWorkHours?: number; multiplier?: number; sundayDays?: number }> = {};
+    const codes = new Set<string>([
+      ...Object.keys(rowMultipliers),
+      ...Object.keys(rowWorkHours),
+      ...Object.keys(rowOtHours),
+      ...Object.keys(rowSundayDays),
+    ]);
+    if (globalMultiplier !== null) summaries.forEach((s) => codes.add(s.empCode));
+    codes.forEach((code) => {
+      const mult = rowMultipliers[code] !== undefined ? rowMultipliers[code] : globalMultiplier ?? undefined;
+      draft[code] = {
+        ...(rowWorkHours[code] !== undefined ? { totalWorkHours: rowWorkHours[code] } : {}),
+        ...(rowOtHours[code] !== undefined ? { otHours: rowOtHours[code] } : {}),
+        ...(mult !== undefined ? { multiplier: mult } : {}),
+        ...(rowSundayDays[code] !== undefined ? { sundayDays: rowSundayDays[code] } : {}),
+      };
+    });
+    return draft;
+  }, [rowMultipliers, rowWorkHours, rowOtHours, rowSundayDays, globalMultiplier, summaries]);
+
+  useEffect(() => {
+    if (isLoading) return;
+    if (Object.keys(draftAdjustments).length === 0) {
+      setPreview({});
+      return;
+    }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const priced = await api.previewPayroll(selectedMonth, draftAdjustments);
+        if (cancelled) return;
+        setPreview(Object.fromEntries(priced.map((p) => [p.empCode, p])));
+      } catch (err) {
+        console.warn('OT preview failed', err);
+      }
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [draftAdjustments, selectedMonth, isLoading]);
 
   // Filter by location
   const locationFiltered = useMemo(() => {
@@ -182,37 +221,37 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
         const isWorkHoursOverridden = rowWorkHours[s.empCode] !== undefined;
         const isOtOverridden = rowOtHours[s.empCode] !== undefined;
         const isMultiplierOverridden = rowMultipliers[s.empCode] !== undefined;
+        const isSundayOverridden = rowSundayDays[s.empCode] !== undefined;
 
-        const totalWorkHours = isWorkHoursOverridden
-          ? rowWorkHours[s.empCode]
-          : s.totalWorkHours || 0;
+        // p = the backend's priced result (saved figures, or the preview of unsaved edits).
+        const p = preview[s.empCode] ?? s;
 
-        const autoOtHours = calcOtHours(totalWorkHours, s.presentDays || 0, standardHoursPerDay);
-
-        const otHours = isOtOverridden
-          ? rowOtHours[s.empCode]
-          : (s.totalOtHours || autoOtHours);
-
+        const totalWorkHours = isWorkHoursOverridden ? rowWorkHours[s.empCode] : p.totalWorkHours || 0;
+        // Input boxes show what the user typed; everything else is the backend's figure.
+        const otHours = isOtOverridden ? rowOtHours[s.empCode] : (p.totalOtHours ?? 0);
         const multiplier = isMultiplierOverridden
           ? rowMultipliers[s.empCode]
-          : globalMultiplier;
+          : globalMultiplier ?? p.otMultiplier ?? 2;
+        const sundayDays = isSundayOverridden ? rowSundayDays[s.empCode] : (p.sundayDays ?? 0);
 
-        const standardDailyWage = calcStandardDailyWage(s.monthlyCtc);
-        const standardHourlyWage = calcStandardHourlyWage(s.monthlyCtc, standardHoursPerDay);
-        // Base take-home pay without OT
-        const baseNetPay = Math.max(0, (s.netPayable || 0) - (s.otEarnings || 0));
+        // Base take-home pay without OT / Sunday pay (from the saved backend result)
+        const baseNetPay = Math.max(0, (s.netPayable || 0) - (s.otEarnings || 0) - (s.sundayEarnings || 0));
 
         return {
           empCode: s.empCode,
           name: s.name,
           location: s.location || '',
           baseSalary: s.monthlyCtc,
-          grossSalary: s.grossEarnings || s.monthlyCtc,
-          totalDeductions: s.totalDeductions || 0,
-          lopDeduction: s.lopDeduction || 0,
-          pfDeduction: s.pfDeduction || 0,
-          ptDeduction: s.ptDeduction || 0,
+          otWageBase: p.otWageBase ?? 0,
+          hoursPerDay: p.otHoursPerDay || 8,
+          otEligible: p.otEligible !== false,
+          grossSalary: p.grossEarnings || s.monthlyCtc,
+          totalDeductions: p.totalDeductions || 0,
+          lopDeduction: p.lopDeduction || 0,
+          pfDeduction: p.pfDeduction || 0,
+          ptDeduction: p.ptDeduction || 0,
           baseNetPay,
+          netPayable: p.netPayable || 0,
           monthDays: s.monthDays || 30,
           payableDays: s.payableDays || 0,
           lopDays: s.lopDays || 0,
@@ -220,14 +259,18 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
           presentDays: s.presentDays || 0,
           multiplier,
           otHours,
-          standardDailyWage,
-          standardHourlyWage,
+          sundayDays,
+          otAmount: p.otEarnings ?? 0,
+          sundayAmount: p.sundayEarnings ?? 0,
+          standardDailyWage: p.otDailyWage ?? 0,
+          standardHourlyWage: p.otHourlyWage ?? 0,
           isWorkHoursOverridden,
           isOtOverridden,
           isMultiplierOverridden,
+          isSundayOverridden,
         };
       });
-  }, [filtered, rowMultipliers, rowWorkHours, rowOtHours, globalMultiplier, standardHoursPerDay]);
+  }, [filtered, preview, rowMultipliers, rowWorkHours, rowOtHours, rowSundayDays, globalMultiplier]);
 
   // Apply global multiplier to all
   const handleSetAllMultiplier = () => {
@@ -239,6 +282,8 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
     setRowMultipliers({});
     setRowWorkHours({});
     setRowOtHours({});
+    setRowSundayDays({});
+    setGlobalMultiplier(null);
     try {
       await api.clearPayrollAdjustments(selectedMonth);
       setSaveSuccessMessage('Reset all adjustments to live attendance defaults.');
@@ -256,21 +301,16 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
     try {
       const adjustmentsToSave: Record<
         string,
-        { otHours?: number; totalWorkHours?: number; multiplier?: number }
+        { otHours?: number; totalWorkHours?: number; multiplier?: number; sundayDays?: number }
       > = {};
 
-      otRows.forEach((r) => {
-        const hasOverride = r.isWorkHoursOverridden || r.isOtOverridden || r.isMultiplierOverridden;
-        if (hasOverride) {
-          adjustmentsToSave[r.empCode] = {
-            ...(r.isWorkHoursOverridden ? { totalWorkHours: r.totalWorkHours } : {}),
-            ...(r.isOtOverridden ? { otHours: r.otHours } : {}),
-            ...(r.isMultiplierOverridden ? { multiplier: r.multiplier } : {}),
-          };
-        }
+      // Save exactly what the backend priced in the preview.
+      Object.entries(draftAdjustments).forEach(([code, adj]) => {
+        if (Object.keys(adj).length > 0) adjustmentsToSave[code] = adj;
       });
 
       await api.savePayrollAdjustments(selectedMonth, adjustmentsToSave);
+      setGlobalMultiplier(null);
       setSaveSuccessMessage('Saved to Payroll! Payslips, Employee Portal, and Drawer updated with new OT figures.');
       await loadPayroll();
       setTimeout(() => setSaveSuccessMessage(null), 6000);
@@ -286,9 +326,11 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
     return (
       Object.keys(rowMultipliers).length > 0 ||
       Object.keys(rowWorkHours).length > 0 ||
-      Object.keys(rowOtHours).length > 0
+      Object.keys(rowOtHours).length > 0 ||
+      Object.keys(rowSundayDays).length > 0 ||
+      globalMultiplier !== null
     );
-  }, [rowMultipliers, rowWorkHours, rowOtHours]);
+  }, [rowMultipliers, rowWorkHours, rowOtHours, rowSundayDays, globalMultiplier]);
 
   // Per-row multiplier change
   const handleRowMultiplierChange = (empCode: string, val: number) => {
@@ -303,6 +345,11 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
   // Per-row OT hours change
   const handleRowOtHoursChange = (empCode: string, val: number) => {
     setRowOtHours((prev) => ({ ...prev, [empCode]: Math.max(0, val) }));
+  };
+
+  // Per-row Sunday days change (fractional values such as 1.5 are preserved)
+  const handleRowSundayDaysChange = (empCode: string, val: number) => {
+    setRowSundayDays((prev) => ({ ...prev, [empCode]: Math.max(0, val) }));
   };
 
   // Reset a single row's overrides
@@ -322,6 +369,11 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
       delete next[empCode];
       return next;
     });
+    setRowSundayDays((prev) => {
+      const next = { ...prev };
+      delete next[empCode];
+      return next;
+    });
   };
 
   // Summary totals
@@ -329,23 +381,24 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
     let totalHoursWorked = 0;
     let totalOtHrs = 0;
     let totalOtAmt = 0;
+    let totalSundayAmt = 0;
     let totalFinal = 0;
     let totalBaseNet = 0;
     let totalDeductions = 0;
 
     otRows.forEach((r) => {
-      const otA = calcOtAmount(r.otHours, r.standardHourlyWage, r.multiplier);
-      const final_ = calcFinalNetPay(r.baseNetPay, otA);
+      const final_ = calcFinalNetPay(r.netPayable);
 
       totalHoursWorked += r.totalWorkHours;
       totalOtHrs += r.otHours;
-      totalOtAmt += otA;
+      totalOtAmt += r.otAmount;
+      totalSundayAmt += r.sundayAmount;
       totalFinal += final_;
       totalBaseNet += r.baseNetPay;
       totalDeductions += r.totalDeductions;
     });
 
-    return { totalHoursWorked, totalOtHrs, totalOtAmt, totalFinal, totalBaseNet, totalDeductions };
+    return { totalHoursWorked, totalOtHrs, totalOtAmt: round2(totalOtAmt), totalSundayAmt: round2(totalSundayAmt), totalFinal, totalBaseNet, totalDeductions };
   }, [otRows]);
 
   // Export CSV
@@ -354,6 +407,7 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
       'Emp ID',
       'Name',
       'Base CTC (₹)',
+      'OT Wage Base: Basic+DA (₹)',
       'Base Net Pay (₹)',
       'Deductions (₹)',
       'Per Day Rate (₹)',
@@ -362,6 +416,8 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
       'OT Multiplier',
       'OT Hours',
       'OT Amount (₹)',
+      'Sunday Days',
+      'Sunday Amount (₹)',
       'Final Net Take-Home (₹)',
     ];
 
@@ -372,13 +428,13 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
     rows.push(headers.map((h) => `"${h}"`).join(','));
 
     otRows.forEach((r) => {
-      const otA = calcOtAmount(r.otHours, r.standardHourlyWage, r.multiplier);
-      const final_ = calcFinalNetPay(r.baseNetPay, otA);
+      const final_ = calcFinalNetPay(r.netPayable);
 
       const row = [
         r.empCode,
         r.name,
         r.baseSalary,
+        r.otWageBase,
         r.baseNetPay,
         r.totalDeductions,
         r.standardDailyWage,
@@ -386,7 +442,9 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
         r.totalWorkHours,
         `${r.multiplier}x`,
         r.otHours,
-        otA,
+        r.otAmount,
+        r.sundayDays,
+        r.sundayAmount,
         final_,
       ];
       rows.push(row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','));
@@ -394,7 +452,7 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
 
     // Totals row
     rows.push('');
-    rows.push(['', '', '', totals.totalBaseNet, totals.totalDeductions, '', '', totals.totalHoursWorked, '', totals.totalOtHrs, totals.totalOtAmt, totals.totalFinal].map((v) => `"${v}"`).join(','));
+    rows.push(['', '', '', '', totals.totalBaseNet, totals.totalDeductions, '', '', totals.totalHoursWorked, '', totals.totalOtHrs, totals.totalOtAmt, '', totals.totalSundayAmt, totals.totalFinal].map((v) => `"${v}"`).join(','));
 
     const blob = new Blob([rows.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -535,7 +593,7 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
               min="0"
               max="10"
               step="0.5"
-              value={globalMultiplier}
+              value={globalMultiplier ?? 2}
               onChange={(e) => {
                 const val = parseFloat(e.target.value);
                 if (!isNaN(val) && val >= 0) setGlobalMultiplier(val);
@@ -607,6 +665,10 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
                     <span className="text-violet-600 font-bold">OT Hrs</span>
                   </th>
                   <th className="py-3.5 px-4 text-right min-w-[110px]">OT Amount</th>
+                  <th className="py-3.5 px-4 text-right min-w-[110px]">
+                    <span className="text-violet-600 font-bold">Sunday Days</span>
+                  </th>
+                  <th className="py-3.5 px-4 text-right min-w-[110px]">Sunday Amount</th>
                   <th className="py-3.5 px-4 text-right min-w-[125px]">
                     <span className="flex items-center justify-end gap-1">
                       <Sparkles className="w-3 h-3 text-amber-500" />
@@ -618,9 +680,9 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                 {otRows.map((r, idx) => {
-                  const otA = calcOtAmount(r.otHours, r.standardHourlyWage, r.multiplier);
-                  const final_ = calcFinalNetPay(r.baseNetPay, otA);
-                  const hasRowOverride = r.isOtOverridden || r.isMultiplierOverridden;
+                  const otA = r.otAmount;
+                  const final_ = calcFinalNetPay(r.netPayable);
+                  const hasRowOverride = r.isOtOverridden || r.isMultiplierOverridden || r.isSundayOverridden;
 
                   return (
                     <tr
@@ -652,11 +714,11 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
                         {r.totalDeductions > 0 ? `-₹${r.totalDeductions.toLocaleString('en-IN')}` : '₹0'}
                       </td>
                       {/* Per Day Rate */}
-                      <td className="py-3 px-4 text-right font-mono text-xs text-slate-700 font-semibold" title={`Base CTC / 26 days = ₹${r.standardDailyWage}/day`}>
+                      <td className="py-3 px-4 text-right font-mono text-xs text-slate-700 font-semibold" title={`(Basic + DA) ₹${r.otWageBase} / 26 = ₹${r.standardDailyWage}/day`}>
                         ₹{r.standardDailyWage.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       {/* Per Hour Rate */}
-                      <td className="py-3 px-4 text-right font-mono text-xs text-slate-600" title={`Base CTC / (26 × 8h) = ₹${r.standardHourlyWage}/hr`}>
+                      <td className="py-3 px-4 text-right font-mono text-xs text-slate-600" title={`(Basic + DA) ₹${r.otWageBase} / (26 × ${r.hoursPerDay}h) = ₹${r.standardHourlyWage}/hr`}>
                         ₹{r.standardHourlyWage.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       {/* Hours Worked — DYNAMIC (Read-Only) */}
@@ -725,6 +787,37 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
                           <span className="text-slate-400 text-xs font-mono">₹0</span>
                         )}
                       </td>
+                      {/* Sunday Days — EDITABLE (fractional allowed) */}
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.5"
+                            value={r.sundayDays}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value);
+                              handleRowSundayDaysChange(r.empCode, isNaN(val) ? 0 : val);
+                            }}
+                            className={`w-16 px-1.5 py-1 text-xs font-mono font-bold text-right border-2 rounded-lg outline-none transition-all cursor-text ${
+                              r.isSundayOverridden
+                                ? 'border-violet-500 bg-violet-50 text-violet-700 focus:ring-2 focus:ring-violet-300'
+                                : 'border-slate-200 hover:border-violet-300 bg-white text-slate-600 focus:border-violet-400 focus:ring-2 focus:ring-violet-200'
+                            }`}
+                          />
+                          <span className="text-[11px] font-bold text-violet-500">d</span>
+                        </div>
+                      </td>
+                      {/* Sunday Amount */}
+                      <td className="py-3 px-4 text-right">
+                        {r.sundayAmount > 0 ? (
+                          <span className="font-mono font-bold text-amber-600 text-xs">
+                            +₹{r.sundayAmount.toLocaleString('en-IN')}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 text-xs font-mono">₹0</span>
+                        )}
+                      </td>
                       {/* Final Net Pay — Formula */}
                       <td className="py-3 px-4 text-right">
                         <span className="font-mono font-extrabold text-slate-900 text-xs bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-200/60 shadow-xs">
@@ -777,6 +870,10 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
                   </td>
                   <td className="py-4 px-4 text-right">
                     <span className="font-mono text-amber-700">+₹{totals.totalOtAmt.toLocaleString('en-IN')}</span>
+                  </td>
+                  <td className="py-4 px-4 text-right"></td>
+                  <td className="py-4 px-4 text-right">
+                    <span className="font-mono text-amber-700">+₹{totals.totalSundayAmt.toLocaleString('en-IN')}</span>
                   </td>
                   <td className="py-4 px-4 text-right">
                     <span className="font-mono font-black text-[#1184b0] text-sm bg-sky-100 px-3 py-1.5 rounded-xl border border-sky-300 shadow-xs">

@@ -29,9 +29,11 @@ export const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({
     operationsCategory: '',
     monthlyCtc: undefined,
     basicSalary: undefined,
+    da: undefined,
     fixedSalary: undefined,
     hra: undefined,
     specialAllowance: undefined,
+    otherAllowance: undefined,
     grossSalary: undefined,
     employeePf: undefined,
     employeeEsic: undefined,
@@ -79,7 +81,9 @@ export const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({
   const fixed = formData.fixedSalary ?? basic;
   const hra = formData.hra ?? 0;
   const specialAllowance = formData.specialAllowance ?? 0;
-  const gross = formData.grossSalary ?? (basic + hra + specialAllowance);
+  const da = formData.da ?? 0;
+  const otherAllowance = formData.otherAllowance ?? 0;
+  const gross = formData.grossSalary ?? (basic + da + hra + specialAllowance + otherAllowance);
 
   const empPf = formData.employeePf ?? 0;
   const empEsic = formData.employeeEsic ?? 0;
@@ -96,11 +100,13 @@ export const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({
     setFormData((prev) => {
       const updated = { ...prev, [field]: numVal };
 
-      // Auto update gross and net if basic/hra/special are edited
+      // Auto update gross and net if basic/DA/hra/special are edited (Gross = Basic + DA + HRA + Special + Others)
       const b = field === 'basicSalary' ? (numVal ?? 0) : (prev.basicSalary ?? 0);
       const h = field === 'hra' ? (numVal ?? 0) : (prev.hra ?? 0);
       const s = field === 'specialAllowance' ? (numVal ?? 0) : (prev.specialAllowance ?? 0);
-      const g = b + h + s;
+      const d = field === 'da' ? (numVal ?? 0) : (prev.da ?? 0);
+      const o = field === 'otherAllowance' ? (numVal ?? 0) : (prev.otherAllowance ?? 0);
+      const g = b + d + h + s + o;
 
       const epf = field === 'employeePf' ? (numVal ?? 0) : (prev.employeePf ?? 0);
       const eesic = field === 'employeeEsic' ? (numVal ?? 0) : (prev.employeeEsic ?? 0);
@@ -303,6 +309,23 @@ export const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({
                       </td>
                     </tr>
 
+                    {/* DA — part of Gross (Basic + DA + HRA + Special) and of the OT wage base (Basic + DA) */}
+                    <tr className="hover:bg-slate-50/80">
+                      <td className="py-2 px-4">DA (Dearness Allowance)</td>
+                      <td className="py-2 px-4 text-right font-mono text-slate-500">
+                        {(formData.da ?? 0) > 0 ? ((formData.da ?? 0) * 12).toLocaleString('en-IN') : '—'}
+                      </td>
+                      <td className="py-2 px-4 text-right">
+                        <input
+                          type="number"
+                          value={formData.da ?? ''}
+                          onChange={(e) => handleFieldChange('da', e.target.value)}
+                          placeholder="0"
+                          className="w-32 text-right bg-white border border-slate-300 rounded px-2.5 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#1184b0]"
+                        />
+                      </td>
+                    </tr>
+
                     {/* Fixed Salary (B) */}
                     <tr className="hover:bg-slate-50/80">
                       <td className="py-2 px-4">Fixed Salary (B)</td>
@@ -348,6 +371,23 @@ export const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({
                           type="number"
                           value={formData.specialAllowance ?? ''}
                           onChange={(e) => handleFieldChange('specialAllowance', e.target.value)}
+                          placeholder="0"
+                          className="w-32 text-right bg-white border border-slate-300 rounded px-2.5 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#1184b0]"
+                        />
+                      </td>
+                    </tr>
+
+                    {/* Others / Other Allowance — part of Gross */}
+                    <tr className="hover:bg-slate-50/80">
+                      <td className="py-2 px-4">Others / Other Allowance</td>
+                      <td className="py-2 px-4 text-right font-mono text-slate-500">
+                        {otherAllowance > 0 ? (otherAllowance * 12).toLocaleString('en-IN') : '—'}
+                      </td>
+                      <td className="py-2 px-4 text-right">
+                        <input
+                          type="number"
+                          value={formData.otherAllowance ?? ''}
+                          onChange={(e) => handleFieldChange('otherAllowance', e.target.value)}
                           placeholder="0"
                           className="w-32 text-right bg-white border border-slate-300 rounded px-2.5 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#1184b0]"
                         />
