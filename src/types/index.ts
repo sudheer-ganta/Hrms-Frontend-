@@ -216,9 +216,6 @@ export interface ShiftConfig {
 
 export interface OvertimeConfig {
   enabled: boolean;
-  minOvertimeMinutes: number;
-  overtimeAfterHours: number;
-  defaultRateMultiplier: number;
 }
 
 export interface LeaveQuotaConfig {
@@ -308,7 +305,8 @@ export interface EmployeePayrollSummary {
   designation?: string;
   location?: string;
   month: string;
-  monthDays: number;
+  monthDays: number; // Total calendar days in the target month (e.g. 30 for September)
+  elapsedDays: number; // Days elapsed so far this month
   presentDays: number;
   halfDays: number;
   absentDays: number;

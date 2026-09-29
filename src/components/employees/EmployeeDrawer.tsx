@@ -129,7 +129,10 @@ export const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({
   const totalLop = payrollSummary?.lopDays !== undefined ? payrollSummary.lopDays : (payrollSummary?.absentDays ?? (timesheet?.totalDaysAbsent ?? employeeRecords.filter((r) => r.status === 'A').length));
   const totalHalfDays = payrollSummary?.halfDays ?? employeeRecords.filter((r) => r.status === 'P/2' || r.status.includes('1/2')).length;
   const totalWorkHours = payrollSummary?.totalWorkHours ?? (timesheet?.totalWorkMinutes ? Number((timesheet.totalWorkMinutes / 60).toFixed(1)) : 0);
-  const attendanceRate = payrollSummary ? Math.round((payrollSummary.payableDays / (payrollSummary.monthDays || 30)) * 100) : 92;
+  // Rate is against days elapsed so far, not the full month — otherwise it
+  // would look artificially low early in the month, before most days have
+  // even happened yet.
+  const attendanceRate = payrollSummary ? Math.round((payrollSummary.payableDays / (payrollSummary.elapsedDays || 30)) * 100) : 92;
 
   const initials = (profile?.name || employee.employeeName)
     .split(' ')

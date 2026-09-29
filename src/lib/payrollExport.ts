@@ -97,7 +97,7 @@ export const exportPayrollTimesheetCSV = (
       ps?.email || '',
       ps?.department || 'Operations',
       ts.sourceName,
-      ps?.monthDays ?? '',
+      ps?.elapsedDays ?? '',
       ps?.presentDays ?? ts.totalDaysPresent,
       ps?.halfDays ?? '',
       ps?.absentDays ?? ts.totalDaysAbsent,

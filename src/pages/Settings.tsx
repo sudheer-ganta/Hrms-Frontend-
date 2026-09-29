@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { AttendanceSource, HRMSPolicySettings, SchedulerStatus, PayrollRunStatus } from '../types';
+import { getShiftStandardHours } from '../lib/utils';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { PayrollCloseReviewModal } from '../components/settings/PayrollCloseReviewModal';
 
@@ -425,37 +426,14 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">Overtime Starts After (Hours)</label>
-                <input
-                  type="number"
-                  min="6"
-                  max="12"
-                  value={policy.overtime.overtimeAfterHours}
-                  onChange={(e) => setPolicy({
-                    ...policy,
-                    overtime: { ...policy.overtime, overtimeAfterHours: Number(e.target.value) }
-                  })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">Default OT Rate Multiplier</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="3"
-                  step="0.1"
-                  value={policy.overtime.defaultRateMultiplier}
-                  onChange={(e) => setPolicy({
-                    ...policy,
-                    overtime: { ...policy.overtime, defaultRateMultiplier: Number(e.target.value) }
-                  })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
-                />
+                <div className="w-full px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-700">
+                  {getShiftStandardHours(policy.shift.startTime, policy.shift.endTime)}h
+                </div>
                 <span className="text-[10px] text-slate-400 mt-1 block">
-                  e.g. 1.5 = time-and-a-half. Applies company-wide unless an employee has a custom OT rate set on their profile.
+                  Auto-calculated from Shift Start/End time above ({policy.shift.startTime}&ndash;{policy.shift.endTime}) &mdash; change the shift timing to adjust this.
                 </span>
               </div>
+
             </div>
           </div>
 

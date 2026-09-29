@@ -51,6 +51,21 @@ export function formatMinutesToHours(minutes: number): string {
 }
 
 /**
+ * The standard work-day length, in hours, derived from the configured shift
+ * start/end time (e.g. 09:00-17:30 = 8.5h). Mirrors the server's
+ * getShiftStandardHours() so wage-rate/OT math agrees everywhere instead of
+ * relying on a hardcoded assumption.
+ */
+export function getShiftStandardHours(startTime?: string, endTime?: string): number {
+  const [startHour, startMin] = (startTime || '09:00').split(':').map(Number);
+  const [endHour, endMin] = (endTime || '17:30').split(':').map(Number);
+  const startMinutes = (startHour || 0) * 60 + (startMin || 0);
+  let endMinutes = (endHour || 0) * 60 + (endMin || 0);
+  if (endMinutes <= startMinutes) endMinutes += 24 * 60; // overnight shift wrap-around
+  return (endMinutes - startMinutes) / 60;
+}
+
+/**
  * Computes the values needed to render "this month" as a Mon-Sun calendar grid,
  * so calendar matrices reflect the real current month instead of a fixed date.
  */

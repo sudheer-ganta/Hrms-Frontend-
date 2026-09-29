@@ -4,6 +4,7 @@ import { TableSkeleton } from '../components/common/TableSkeleton';
 import { EmptyState } from '../components/common/EmptyState';
 import { api } from '../services/api';
 import { AttendanceSource, EmployeePayrollSummary } from '../types';
+import { getShiftStandardHours } from '../lib/utils';
 import {
   Calculator,
   Search,
@@ -64,17 +65,18 @@ interface OTRow {
   isMultiplierOverridden: boolean;
 }
 
-const STANDARD_HOURS_PER_DAY = 8;
-
-// All formulas — aligned with the server statutory payroll engine
+// All formulas — aligned with the server statutory payroll engine.
+// standardHoursPerDay is derived dynamically from the configured shift
+// start/end time (see getShiftStandardHours in lib/utils) rather than a
+// hardcoded assumption, so this always agrees with payroll.service.ts.
 const calcStandardDailyWage = (baseSalary: number) =>
   Math.round((baseSalary / 26) * 100) / 100;
 
-const calcStandardHourlyWage = (baseSalary: number) =>
-  Math.round((baseSalary / (26 * STANDARD_HOURS_PER_DAY)) * 100) / 100;
+const calcStandardHourlyWage = (baseSalary: number, standardHoursPerDay: number) =>
+  Math.round((baseSalary / (26 * standardHoursPerDay)) * 100) / 100;
 
-const calcOtHours = (totalWorkHours: number, presentDays: number) => {
-  const expected = presentDays * STANDARD_HOURS_PER_DAY;
+const calcOtHours = (totalWorkHours: number, presentDays: number, standardHoursPerDay: number) => {
+  const expected = presentDays * standardHoursPerDay;
   const ot = totalWorkHours - expected;
   return ot > 0 ? Math.round(ot * 10) / 10 : 0;
 };
@@ -102,8 +104,19 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
   const [rowWorkHours, setRowWorkHours] = useState<Record<string, number>>({});
   const [rowOtHours, setRowOtHours] = useState<Record<string, number>>({});
   const [isMonthOpen, setIsMonthOpen] = useState(false);
+  const [standardHoursPerDay, setStandardHoursPerDay] = useState<number>(8);
 
   const monthOptions = useMemo(() => generateMonthOptions(), []);
+
+  useEffect(() => {
+    api.getPolicySettings()
+      .then((policy) => {
+        setStandardHoursPerDay(getShiftStandardHours(policy.shift.startTime, policy.shift.endTime));
+      })
+      .catch(() => {
+        // Keep the 8h fallback if settings can't be loaded
+      });
+  }, []);
 
   const loadPayroll = useCallback(async () => {
     setIsLoading(true);
@@ -174,7 +187,7 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
           ? rowWorkHours[s.empCode]
           : s.totalWorkHours || 0;
 
-        const autoOtHours = calcOtHours(totalWorkHours, s.presentDays || 0);
+        const autoOtHours = calcOtHours(totalWorkHours, s.presentDays || 0, standardHoursPerDay);
 
         const otHours = isOtOverridden
           ? rowOtHours[s.empCode]
@@ -185,7 +198,7 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
           : globalMultiplier;
 
         const standardDailyWage = calcStandardDailyWage(s.monthlyCtc);
-        const standardHourlyWage = calcStandardHourlyWage(s.monthlyCtc);
+        const standardHourlyWage = calcStandardHourlyWage(s.monthlyCtc, standardHoursPerDay);
         // Base take-home pay without OT
         const baseNetPay = Math.max(0, (s.netPayable || 0) - (s.otEarnings || 0));
 
@@ -214,7 +227,7 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
           isMultiplierOverridden,
         };
       });
-  }, [filtered, rowMultipliers, rowWorkHours, rowOtHours, globalMultiplier]);
+  }, [filtered, rowMultipliers, rowWorkHours, rowOtHours, globalMultiplier, standardHoursPerDay]);
 
   // Apply global multiplier to all
   const handleSetAllMultiplier = () => {

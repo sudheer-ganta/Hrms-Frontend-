@@ -1048,16 +1048,22 @@ export const MyPortal: React.FC = () => {
                 </table>
               </div>
 
-              {/* Net Take Home Highlight Box */}
+              {/* Net Take Home Highlight Box — shows the real MTD payable amount
+                  (netPayable), which reflects this month's actual OT/LOP, not the
+                  fixed Annexure K reference figure (Row G) shown in the table above. */}
               <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="space-y-0.5">
-                  <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider">Final Monthly Take-Home Bank Credit</span>
+                  <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider">This Month's Take-Home Bank Credit</span>
                   <p className="text-xs text-emerald-700">
-                    Gross Salary (D: ₹{(payrollSummary.grossSalary || 28000).toLocaleString('en-IN')}) − Employee PF (E: ₹{payrollSummary.pfDeduction}) = <strong>Total Net Salary (G: ₹{(payrollSummary.totalNetSalary || 26200).toLocaleString('en-IN')})</strong> (100% Guaranteed, 0 LOP)
+                    Live month-to-date accrual ({payrollSummary.elapsedDays ?? 0}/{payrollSummary.monthDays ?? daysInCalendarMonth} days elapsed) of Total Net Salary (G: ₹{(payrollSummary.totalNetSalary || 26200).toLocaleString('en-IN')})
+                    {payrollSummary.otEarnings > 0 && <> + OT Earned (₹{payrollSummary.otEarnings.toLocaleString('en-IN')})</>}
+                    {payrollSummary.lopDays > 0 && <> − Loss of Pay ({payrollSummary.lopDays}d: ₹{payrollSummary.lopDeduction.toLocaleString('en-IN')})</>}
+                    {' '}
+                    ({payrollSummary.lopDays > 0 ? `${payrollSummary.lopDays} unpaid day(s) this month` : '0 LOP so far this month'})
                   </p>
                 </div>
                 <span className="text-2xl font-heading font-extrabold text-emerald-800 font-mono">
-                  ₹{(payrollSummary.totalNetSalary || 26200).toLocaleString('en-IN')}
+                  ₹{(payrollSummary.netPayable ?? payrollSummary.totalNetSalary ?? 26200).toLocaleString('en-IN')}
                 </span>
               </div>
             </div>
