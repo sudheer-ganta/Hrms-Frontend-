@@ -3,6 +3,7 @@ import { LocationTabs } from '../components/layout/LocationTabs';
 import { TableSkeleton } from '../components/common/TableSkeleton';
 import { EmptyState } from '../components/common/EmptyState';
 import { api } from '../services/api';
+import { useMutationVersion } from '../services/dataSync';
 import { AttendanceSource, EmployeePayrollSummary } from '../types';
 import {
   Calculator,
@@ -18,6 +19,8 @@ import {
   CheckCircle2,
   Loader2,
 } from 'lucide-react';
+import { istMonth, monthLabel, monthOptions as monthOptionKeys } from '../lib/businessDate';
+import { errorMessage } from '../lib/apiError';
 
 interface OTCalculatorProps {
   sources: AttendanceSource[];
@@ -27,23 +30,9 @@ interface OTCalculatorProps {
 }
 
 // Generate month options (current + 11 previous months)
-// Month keys are built from LOCAL year/month. Using toISOString() shifts the
-// month back by one in timezones ahead of UTC (e.g. IST), because local midnight
-// on the 1st is still the previous day in UTC.
-const toMonthKey = (d: Date): string =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-
-const generateMonthOptions = (): { value: string; label: string }[] => {
-  const months: { value: string; label: string }[] = [];
-  const now = new Date();
-  for (let i = 0; i < 12; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const value = toMonthKey(d);
-    const label = d.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
-    months.push({ value, label });
-  }
-  return months;
-};
+// Business months are IST "YYYY-MM" keys (see lib/businessDate), never browser-local or UTC dates.
+const generateMonthOptions = (): { value: string; label: string }[] =>
+  monthOptionKeys(12).map((value) => ({ value, label: monthLabel(value) }));
 
 interface OTRow {
   empCode: string;
@@ -59,7 +48,7 @@ interface OTRow {
   pfDeduction: number;
   ptDeduction: number;
   baseNetPay: number; // Net take-home before OT
-  netPayable: number; // Backend net pay incl. OT + Sunday
+  netPayable: number; // Backend net pay incl. OT + weekly-off/holiday work
   monthDays: number;
   payableDays: number;
   lopDays: number;
@@ -67,18 +56,23 @@ interface OTRow {
   presentDays: number;
   multiplier: number; // editable
   otHours: number; // editable
-  sundayDays: number; // editable (fractional allowed)
+  weeklyOffDays: number; // editable (fractional allowed) - HR override of the resolver's weekly-off work
+  holidayDays: number; // editable - HR override of the resolver's paid-holiday work
+  weeklyOffAutoDays: number; // what attendance recognized under Settings
+  holidayAutoDays: number;
   otAmount: number;
-  sundayAmount: number;
+  weeklyOffAmount: number;
+  holidayAmount: number;
   standardDailyWage: number;
   standardHourlyWage: number;
   isWorkHoursOverridden: boolean;
   isOtOverridden: boolean;
   isMultiplierOverridden: boolean;
-  isSundayOverridden: boolean;
+  isWeeklyOffOverridden: boolean;
+  isHolidayOverridden: boolean;
 }
 
-// The screen does NOT calculate OT or Sunday pay. Every OT / Sunday / net figure shown
+// The screen does NOT calculate OT or off-day-work pay. Every OT / weekly-off / holiday / net figure shown
 // comes from the backend payroll engine (payroll.service.ts): the saved values from
 // /payroll/all, and, while the user has unsaved edits, a read-only pricing of those
 // edits from /payroll/preview (same engine, nothing persisted).
@@ -98,13 +92,17 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [selectedMonth, setSelectedMonth] = useState(toMonthKey(new Date()));
+  const [selectedMonth, setSelectedMonth] = useState(istMonth());
   const [globalMultiplier, setGlobalMultiplier] = useState<number | null>(null); // null = each employee's backend multiplier (default 2x)
   const [rowMultipliers, setRowMultipliers] = useState<Record<string, number>>({});
   const [rowWorkHours, setRowWorkHours] = useState<Record<string, number>>({});
   const [rowOtHours, setRowOtHours] = useState<Record<string, number>>({});
-  const [rowSundayDays, setRowSundayDays] = useState<Record<string, number>>({});
+  const [rowWeeklyOffDays, setRowWeeklyOffDays] = useState<Record<string, number>>({});
+  const [rowHolidayDays, setRowHolidayDays] = useState<Record<string, number>>({});
+  const [overrideReason, setOverrideReason] = useState('');
   const [isMonthOpen, setIsMonthOpen] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [monthLocked, setMonthLocked] = useState(false);
   const [preview, setPreview] = useState<Record<string, EmployeePayrollSummary>>({});
 
   const monthOptions = useMemo(() => generateMonthOptions(), []);
@@ -118,24 +116,30 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
       ]);
 
       setSummaries(data || []);
+      setMonthLocked((data || []).some((p) => p.payrollStatus === 'CLOSED'));
+      setSaveError(null);
 
       // Pre-fill per-row custom overrides from backend adjustments if present
       const initMult: Record<string, number> = {};
       const initWork: Record<string, number> = {};
       const initOt: Record<string, number> = {};
-      const initSun: Record<string, number> = {};
+      const initWeeklyOff: Record<string, number> = {};
+      const initHoliday: Record<string, number> = {};
 
       Object.entries(adj || {}).forEach(([emp, val]: [string, any]) => {
         if (val.multiplier !== undefined) initMult[emp] = val.multiplier;
         if (val.totalWorkHours !== undefined) initWork[emp] = val.totalWorkHours;
         if (val.otHours !== undefined) initOt[emp] = val.otHours;
-        if (val.sundayDays !== undefined) initSun[emp] = val.sundayDays;
+        const wo = val.weeklyOffWorkDays ?? val.sundayDays; // sundayDays = legacy name
+        if (wo !== undefined) initWeeklyOff[emp] = wo;
+        if (val.holidayWorkDays !== undefined) initHoliday[emp] = val.holidayWorkDays;
       });
 
       setRowMultipliers(initMult);
       setRowWorkHours(initWork);
       setRowOtHours(initOt);
-      setRowSundayDays(initSun);
+      setRowWeeklyOffDays(initWeeklyOff);
+      setRowHolidayDays(initHoliday);
     } catch (err) {
       console.error('Failed to load payroll data', err);
       setSummaries([]);
@@ -144,32 +148,35 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
     }
   }, [selectedMonth]);
 
+  const mutationVersion = useMutationVersion();
   useEffect(() => {
     loadPayroll();
-  }, [loadPayroll]);
+  }, [loadPayroll, mutationVersion]);
 
   // Draft adjustments = every edit currently on screen (including values loaded from the
   // saved adjustments). Priced by the backend engine so the screen never re-derives them.
   const draftAdjustments = useMemo(() => {
-    const draft: Record<string, { otHours?: number; totalWorkHours?: number; multiplier?: number; sundayDays?: number }> = {};
+    const draft: Record<string, { otHours?: number; totalWorkHours?: number; multiplier?: number; weeklyOffWorkDays?: number; holidayWorkDays?: number }> = {};
     const codes = new Set<string>([
       ...Object.keys(rowMultipliers),
       ...Object.keys(rowWorkHours),
       ...Object.keys(rowOtHours),
-      ...Object.keys(rowSundayDays),
+      ...Object.keys(rowWeeklyOffDays),
+      ...Object.keys(rowHolidayDays),
     ]);
-    if (globalMultiplier !== null) summaries.forEach((s) => codes.add(s.empCode));
+    if (globalMultiplier !== null) summaries.filter((s) => s.monthlyCtc > 0 && s.otEligible !== false).forEach((s) => codes.add(s.empCode));
     codes.forEach((code) => {
       const mult = rowMultipliers[code] !== undefined ? rowMultipliers[code] : globalMultiplier ?? undefined;
       draft[code] = {
         ...(rowWorkHours[code] !== undefined ? { totalWorkHours: rowWorkHours[code] } : {}),
         ...(rowOtHours[code] !== undefined ? { otHours: rowOtHours[code] } : {}),
         ...(mult !== undefined ? { multiplier: mult } : {}),
-        ...(rowSundayDays[code] !== undefined ? { sundayDays: rowSundayDays[code] } : {}),
+        ...(rowWeeklyOffDays[code] !== undefined ? { weeklyOffWorkDays: rowWeeklyOffDays[code] } : {}),
+        ...(rowHolidayDays[code] !== undefined ? { holidayWorkDays: rowHolidayDays[code] } : {}),
       };
     });
     return draft;
-  }, [rowMultipliers, rowWorkHours, rowOtHours, rowSundayDays, globalMultiplier, summaries]);
+  }, [rowMultipliers, rowWorkHours, rowOtHours, rowWeeklyOffDays, rowHolidayDays, globalMultiplier, summaries]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -216,12 +223,13 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
   // Build OT rows with computed values & overrides
   const otRows = useMemo(() => {
     return filtered
-      .filter((s) => s.monthlyCtc > 0)
+      .filter((s) => s.monthlyCtc > 0 && s.otEligible !== false)
       .map((s): OTRow => {
         const isWorkHoursOverridden = rowWorkHours[s.empCode] !== undefined;
         const isOtOverridden = rowOtHours[s.empCode] !== undefined;
         const isMultiplierOverridden = rowMultipliers[s.empCode] !== undefined;
-        const isSundayOverridden = rowSundayDays[s.empCode] !== undefined;
+        const isWeeklyOffOverridden = rowWeeklyOffDays[s.empCode] !== undefined;
+        const isHolidayOverridden = rowHolidayDays[s.empCode] !== undefined;
 
         // p = the backend's priced result (saved figures, or the preview of unsaved edits).
         const p = preview[s.empCode] ?? s;
@@ -232,10 +240,11 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
         const multiplier = isMultiplierOverridden
           ? rowMultipliers[s.empCode]
           : globalMultiplier ?? p.otMultiplier ?? 2;
-        const sundayDays = isSundayOverridden ? rowSundayDays[s.empCode] : (p.sundayDays ?? 0);
+        const weeklyOffDays = isWeeklyOffOverridden ? rowWeeklyOffDays[s.empCode] : (p.weeklyOffWorkDays ?? 0);
+        const holidayDays = isHolidayOverridden ? rowHolidayDays[s.empCode] : (p.holidayWorkDays ?? 0);
 
-        // Base take-home pay without OT / Sunday pay (from the saved backend result)
-        const baseNetPay = Math.max(0, (s.netPayable || 0) - (s.otEarnings || 0) - (s.sundayEarnings || 0));
+        // Base take-home pay without OT / off-day-work pay (from the saved backend result)
+        const baseNetPay = Math.max(0, (s.netPayable || 0) - (s.otEarnings || 0) - (s.weeklyOffWorkEarnings || 0) - (s.holidayWorkEarnings || 0));
 
         return {
           empCode: s.empCode,
@@ -259,18 +268,23 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
           presentDays: s.presentDays || 0,
           multiplier,
           otHours,
-          sundayDays,
+          weeklyOffDays,
+          holidayDays,
+          weeklyOffAutoDays: p.weeklyOffWorkAutoDays ?? 0,
+          holidayAutoDays: p.holidayWorkAutoDays ?? 0,
           otAmount: p.otEarnings ?? 0,
-          sundayAmount: p.sundayEarnings ?? 0,
+          weeklyOffAmount: p.weeklyOffWorkEarnings ?? 0,
+          holidayAmount: p.holidayWorkEarnings ?? 0,
           standardDailyWage: p.otDailyWage ?? 0,
           standardHourlyWage: p.otHourlyWage ?? 0,
           isWorkHoursOverridden,
           isOtOverridden,
           isMultiplierOverridden,
-          isSundayOverridden,
+          isWeeklyOffOverridden,
+          isHolidayOverridden,
         };
       });
-  }, [filtered, preview, rowMultipliers, rowWorkHours, rowOtHours, rowSundayDays, globalMultiplier]);
+  }, [filtered, preview, rowMultipliers, rowWorkHours, rowOtHours, rowWeeklyOffDays, rowHolidayDays, globalMultiplier]);
 
   // Apply global multiplier to all
   const handleSetAllMultiplier = () => {
@@ -282,7 +296,9 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
     setRowMultipliers({});
     setRowWorkHours({});
     setRowOtHours({});
-    setRowSundayDays({});
+    setRowWeeklyOffDays({});
+    setRowHolidayDays({});
+    setOverrideReason('');
     setGlobalMultiplier(null);
     try {
       await api.clearPayrollAdjustments(selectedMonth);
@@ -298,10 +314,11 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
   const handleSaveToPayroll = async () => {
     setIsSaving(true);
     setSaveSuccessMessage(null);
+    setSaveError(null);
     try {
       const adjustmentsToSave: Record<
         string,
-        { otHours?: number; totalWorkHours?: number; multiplier?: number; sundayDays?: number }
+        { otHours?: number; totalWorkHours?: number; multiplier?: number; weeklyOffWorkDays?: number; holidayWorkDays?: number }
       > = {};
 
       // Save exactly what the backend priced in the preview.
@@ -309,14 +326,15 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
         if (Object.keys(adj).length > 0) adjustmentsToSave[code] = adj;
       });
 
-      await api.savePayrollAdjustments(selectedMonth, adjustmentsToSave);
+      // Overriding what attendance recognized on an off day is an explicit, audited business decision.
+      const touchesOffDays = Object.keys(rowWeeklyOffDays).length > 0 || Object.keys(rowHolidayDays).length > 0;
+      await api.savePayrollAdjustments(selectedMonth, adjustmentsToSave, touchesOffDays || overrideReason.trim() ? overrideReason.trim() : undefined);
       setGlobalMultiplier(null);
       setSaveSuccessMessage('Saved to Payroll! Payslips, Employee Portal, and Drawer updated with new OT figures.');
       await loadPayroll();
       setTimeout(() => setSaveSuccessMessage(null), 6000);
-    } catch (err: any) {
-      console.error('Failed to save adjustments to payroll', err);
-      alert('Failed to save to payroll: ' + (err.message || 'Unknown error'));
+    } catch (err) {
+      setSaveError(errorMessage(err, 'Failed to save to payroll'));
     } finally {
       setIsSaving(false);
     }
@@ -327,10 +345,11 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
       Object.keys(rowMultipliers).length > 0 ||
       Object.keys(rowWorkHours).length > 0 ||
       Object.keys(rowOtHours).length > 0 ||
-      Object.keys(rowSundayDays).length > 0 ||
+      Object.keys(rowWeeklyOffDays).length > 0 ||
+      Object.keys(rowHolidayDays).length > 0 ||
       globalMultiplier !== null
     );
-  }, [rowMultipliers, rowWorkHours, rowOtHours, rowSundayDays, globalMultiplier]);
+  }, [rowMultipliers, rowWorkHours, rowOtHours, rowWeeklyOffDays, rowHolidayDays, globalMultiplier]);
 
   // Per-row multiplier change
   const handleRowMultiplierChange = (empCode: string, val: number) => {
@@ -347,9 +366,12 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
     setRowOtHours((prev) => ({ ...prev, [empCode]: Math.max(0, val) }));
   };
 
-  // Per-row Sunday days change (fractional values such as 1.5 are preserved)
-  const handleRowSundayDaysChange = (empCode: string, val: number) => {
-    setRowSundayDays((prev) => ({ ...prev, [empCode]: Math.max(0, val) }));
+  // Per-row weekly-off / holiday work days (fractional values such as 1.5 are preserved)
+  const handleRowWeeklyOffDaysChange = (empCode: string, val: number) => {
+    setRowWeeklyOffDays((prev) => ({ ...prev, [empCode]: Math.max(0, val) }));
+  };
+  const handleRowHolidayDaysChange = (empCode: string, val: number) => {
+    setRowHolidayDays((prev) => ({ ...prev, [empCode]: Math.max(0, val) }));
   };
 
   // Reset a single row's overrides
@@ -369,7 +391,12 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
       delete next[empCode];
       return next;
     });
-    setRowSundayDays((prev) => {
+    setRowWeeklyOffDays((prev) => {
+      const next = { ...prev };
+      delete next[empCode];
+      return next;
+    });
+    setRowHolidayDays((prev) => {
       const next = { ...prev };
       delete next[empCode];
       return next;
@@ -381,7 +408,8 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
     let totalHoursWorked = 0;
     let totalOtHrs = 0;
     let totalOtAmt = 0;
-    let totalSundayAmt = 0;
+    let totalWeeklyOffAmt = 0;
+    let totalHolidayAmt = 0;
     let totalFinal = 0;
     let totalBaseNet = 0;
     let totalDeductions = 0;
@@ -392,13 +420,14 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
       totalHoursWorked += r.totalWorkHours;
       totalOtHrs += r.otHours;
       totalOtAmt += r.otAmount;
-      totalSundayAmt += r.sundayAmount;
+      totalWeeklyOffAmt += r.weeklyOffAmount;
+      totalHolidayAmt += r.holidayAmount;
       totalFinal += final_;
       totalBaseNet += r.baseNetPay;
       totalDeductions += r.totalDeductions;
     });
 
-    return { totalHoursWorked, totalOtHrs, totalOtAmt: round2(totalOtAmt), totalSundayAmt: round2(totalSundayAmt), totalFinal, totalBaseNet, totalDeductions };
+    return { totalHoursWorked, totalOtHrs, totalOtAmt: round2(totalOtAmt), totalWeeklyOffAmt: round2(totalWeeklyOffAmt), totalHolidayAmt: round2(totalHolidayAmt), totalFinal, totalBaseNet, totalDeductions };
   }, [otRows]);
 
   // Export CSV
@@ -416,14 +445,16 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
       'OT Multiplier',
       'OT Hours',
       'OT Amount (₹)',
-      'Sunday Days',
-      'Sunday Amount (₹)',
+      'Weekly-off Work Days',
+      'Weekly-off Work Amount (₹)',
+      'Holiday Work Days',
+      'Holiday Work Amount (₹)',
       'Final Net Take-Home (₹)',
     ];
 
     const rows: string[] = [];
     rows.push(['ColorMyles HRMS — Unified OT & Payroll Export'].map((s) => `"${s}"`).join(','));
-    rows.push([`Month: ${monthOptions.find((m) => m.value === selectedMonth)?.label || selectedMonth}`, `Generated: ${new Date().toLocaleString()}`].map((s) => `"${s}"`).join(','));
+    rows.push([`Month: ${monthOptions.find((m) => m.value === selectedMonth)?.label || selectedMonth}`, `Generated: ${new Date().toLocaleString('en-GB', { timeZone: 'Asia/Kolkata' })} IST`].map((s) => `"${s}"`).join(','));
     rows.push('');
     rows.push(headers.map((h) => `"${h}"`).join(','));
 
@@ -443,8 +474,10 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
         `${r.multiplier}x`,
         r.otHours,
         r.otAmount,
-        r.sundayDays,
-        r.sundayAmount,
+        r.weeklyOffDays,
+        r.weeklyOffAmount,
+        r.holidayDays,
+        r.holidayAmount,
         final_,
       ];
       rows.push(row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','));
@@ -452,7 +485,7 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
 
     // Totals row
     rows.push('');
-    rows.push(['', '', '', '', totals.totalBaseNet, totals.totalDeductions, '', '', totals.totalHoursWorked, '', totals.totalOtHrs, totals.totalOtAmt, '', totals.totalSundayAmt, totals.totalFinal].map((v) => `"${v}"`).join(','));
+    rows.push(['', '', '', '', totals.totalBaseNet, totals.totalDeductions, '', '', totals.totalHoursWorked, '', totals.totalOtHrs, totals.totalOtAmt, '', totals.totalWeeklyOffAmt, '', totals.totalHolidayAmt, totals.totalFinal].map((v) => `"${v}"`).join(','));
 
     const blob = new Blob([rows.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -494,9 +527,20 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
               Reset All Edits
             </button>
           )}
+          {(Object.keys(rowWeeklyOffDays).length > 0 || Object.keys(rowHolidayDays).length > 0) && (
+            <input
+              type="text"
+              value={overrideReason}
+              onChange={(e) => setOverrideReason(e.target.value)}
+              placeholder="Reason for off-day work override (required)"
+              maxLength={500}
+              aria-label="Reason for off-day work override"
+              className="w-64 px-3 py-2 text-xs rounded-xl border-2 border-violet-300 bg-violet-50 outline-none focus:ring-2 focus:ring-violet-300"
+            />
+          )}
           <button
             onClick={handleSaveToPayroll}
-            disabled={isSaving || otRows.length === 0}
+            disabled={isSaving || otRows.length === 0 || monthLocked}
             className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-bold rounded-xl shadow-md shadow-indigo-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
             title="Save custom OT hours & multipliers so Payslips and Employee records everywhere reflect these adjustments"
           >
@@ -522,6 +566,18 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
           </button>
         </div>
       </div>
+
+      {monthLocked && (
+        <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900 font-semibold">
+          This month's payroll is closed. The figures below are the frozen snapshot and cannot be edited. A Super Admin can reopen the month in Settings.
+        </div>
+      )}
+      {saveError && (
+        <div className="flex items-center justify-between p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-800 font-semibold">
+          <span>{saveError}</span>
+          <button onClick={() => setSaveError(null)} className="text-rose-600 font-bold px-2">x</button>
+        </div>
+      )}
 
       {/* Save Success Alert Banner */}
       {saveSuccessMessage && (
@@ -636,10 +692,10 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-gradient-to-r from-slate-50 to-indigo-50/30 border-b border-slate-200 sticky top-0 z-10">
+              <thead className="bg-slate-100 border-b border-slate-200 sticky top-0 z-20 shadow-xs">
                 <tr className="text-[10px] text-slate-500 uppercase tracking-wider font-extrabold">
-                  <th className="py-3.5 px-4 sticky left-0 bg-gradient-to-r from-slate-50 to-indigo-50/30 z-20 min-w-[100px]">Emp ID</th>
-                  <th className="py-3.5 px-4 sticky left-[100px] bg-gradient-to-r from-slate-50 to-indigo-50/30 z-20 min-w-[160px]">Name</th>
+                  <th className="py-3.5 px-4 sticky left-0 bg-slate-100 z-30 min-w-[90px] shadow-[1px_0_0_0_#e2e8f0]">Emp ID</th>
+                  <th className="py-3.5 px-4 sticky left-[90px] bg-slate-100 z-30 min-w-[160px] shadow-[2px_0_4px_-1px_rgba(0,0,0,0.08)]">Name</th>
                   <th className="py-3.5 px-4 text-right min-w-[105px]">Base CTC</th>
                   <th className="py-3.5 px-4 text-right min-w-[120px]">
                     <span className="flex items-center justify-end gap-1">
@@ -666,9 +722,13 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
                   </th>
                   <th className="py-3.5 px-4 text-right min-w-[110px]">OT Amount</th>
                   <th className="py-3.5 px-4 text-right min-w-[110px]">
-                    <span className="text-violet-600 font-bold">Sunday Days</span>
+                    <span className="text-violet-600 font-bold">Weekly-off Days</span>
                   </th>
-                  <th className="py-3.5 px-4 text-right min-w-[110px]">Sunday Amount</th>
+                  <th className="py-3.5 px-4 text-right min-w-[110px]">Weekly-off Amount</th>
+                  <th className="py-3.5 px-4 text-right min-w-[110px]">
+                    <span className="text-violet-600 font-bold">Holiday Days</span>
+                  </th>
+                  <th className="py-3.5 px-4 text-right min-w-[110px]">Holiday Amount</th>
                   <th className="py-3.5 px-4 text-right min-w-[125px]">
                     <span className="flex items-center justify-end gap-1">
                       <Sparkles className="w-3 h-3 text-amber-500" />
@@ -682,7 +742,7 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
                 {otRows.map((r, idx) => {
                   const otA = r.otAmount;
                   const final_ = calcFinalNetPay(r.netPayable);
-                  const hasRowOverride = r.isOtOverridden || r.isMultiplierOverridden || r.isSundayOverridden;
+                  const hasRowOverride = r.isOtOverridden || r.isMultiplierOverridden || r.isWeeklyOffOverridden || r.isHolidayOverridden;
 
                   return (
                     <tr
@@ -692,11 +752,11 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
                       }`}
                     >
                       {/* Emp ID — Sticky */}
-                      <td className={`py-3 px-4 sticky left-0 z-10 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} group-hover:bg-indigo-50/30 transition-colors`}>
+                      <td className="py-3 px-4 sticky left-0 z-10 bg-white group-hover:bg-slate-50 transition-colors shadow-[1px_0_0_0_#f1f5f9]">
                         <span className="font-mono font-bold text-[#1184b0] text-[11px]">{r.empCode}</span>
                       </td>
                       {/* Name — Sticky */}
-                      <td className={`py-3 px-4 sticky left-[100px] z-10 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} group-hover:bg-indigo-50/30 transition-colors`}>
+                      <td className="py-3 px-4 sticky left-[90px] z-10 bg-white group-hover:bg-slate-50 transition-colors shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)]">
                         <span className="font-bold text-slate-900 text-xs">{r.name}</span>
                       </td>
                       {/* Base CTC */}
@@ -787,20 +847,21 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
                           <span className="text-slate-400 text-xs font-mono">₹0</span>
                         )}
                       </td>
-                      {/* Sunday Days — EDITABLE (fractional allowed) */}
+                      {/* Weekly-off days: EDITABLE override of what attendance recognized under Settings */}
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-1">
                           <input
                             type="number"
                             min="0"
                             step="0.5"
-                            value={r.sundayDays}
+                            value={r.weeklyOffDays}
+                            title={`Attendance recognized ${r.weeklyOffAutoDays} day(s) under Settings. Editing this is an audited HR override.`}
                             onChange={(e) => {
                               const val = parseFloat(e.target.value);
-                              handleRowSundayDaysChange(r.empCode, isNaN(val) ? 0 : val);
+                              handleRowWeeklyOffDaysChange(r.empCode, isNaN(val) ? 0 : val);
                             }}
                             className={`w-16 px-1.5 py-1 text-xs font-mono font-bold text-right border-2 rounded-lg outline-none transition-all cursor-text ${
-                              r.isSundayOverridden
+                              r.isWeeklyOffOverridden
                                 ? 'border-violet-500 bg-violet-50 text-violet-700 focus:ring-2 focus:ring-violet-300'
                                 : 'border-slate-200 hover:border-violet-300 bg-white text-slate-600 focus:border-violet-400 focus:ring-2 focus:ring-violet-200'
                             }`}
@@ -808,11 +869,41 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
                           <span className="text-[11px] font-bold text-violet-500">d</span>
                         </div>
                       </td>
-                      {/* Sunday Amount */}
                       <td className="py-3 px-4 text-right">
-                        {r.sundayAmount > 0 ? (
+                        {r.weeklyOffAmount > 0 ? (
                           <span className="font-mono font-bold text-amber-600 text-xs">
-                            +₹{r.sundayAmount.toLocaleString('en-IN')}
+                            +₹{r.weeklyOffAmount.toLocaleString('en-IN')}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 text-xs font-mono">₹0</span>
+                        )}
+                      </td>
+                      {/* Paid-holiday days: EDITABLE override of what attendance recognized under Settings */}
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.5"
+                            value={r.holidayDays}
+                            title={`Attendance recognized ${r.holidayAutoDays} day(s) under Settings. Editing this is an audited HR override.`}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value);
+                              handleRowHolidayDaysChange(r.empCode, isNaN(val) ? 0 : val);
+                            }}
+                            className={`w-16 px-1.5 py-1 text-xs font-mono font-bold text-right border-2 rounded-lg outline-none transition-all cursor-text ${
+                              r.isHolidayOverridden
+                                ? 'border-violet-500 bg-violet-50 text-violet-700 focus:ring-2 focus:ring-violet-300'
+                                : 'border-slate-200 hover:border-violet-300 bg-white text-slate-600 focus:border-violet-400 focus:ring-2 focus:ring-violet-200'
+                            }`}
+                          />
+                          <span className="text-[11px] font-bold text-violet-500">d</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        {r.holidayAmount > 0 ? (
+                          <span className="font-mono font-bold text-amber-600 text-xs">
+                            +₹{r.holidayAmount.toLocaleString('en-IN')}
                           </span>
                         ) : (
                           <span className="text-slate-400 text-xs font-mono">₹0</span>
@@ -844,12 +935,12 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
               {/* Summary Footer */}
               <tfoot className="bg-gradient-to-r from-slate-100 to-indigo-50/40 border-t-2 border-slate-300">
                 <tr className="text-xs font-extrabold text-slate-800">
-                  <td className="py-4 px-4 sticky left-0 bg-gradient-to-r from-slate-100 to-indigo-50/40 z-10" colSpan={1}>
+                  <td className="py-4 px-4 sticky left-0 bg-slate-100 z-10 shadow-[1px_0_0_0_#cbd5e1]" colSpan={1}>
                     <span className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-slate-500">
                       <Sigma className="w-4 h-4 text-indigo-500" /> Totals
                     </span>
                   </td>
-                  <td className="py-4 px-4 sticky left-[100px] bg-gradient-to-r from-slate-100 to-indigo-50/40 z-10 text-slate-500 text-[11px]">
+                  <td className="py-4 px-4 sticky left-[90px] bg-slate-100 z-10 text-slate-500 text-[11px] shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)]">
                     {otRows.length} employees
                   </td>
                   <td className="py-4 px-4 text-right"></td>
@@ -873,7 +964,11 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
                   </td>
                   <td className="py-4 px-4 text-right"></td>
                   <td className="py-4 px-4 text-right">
-                    <span className="font-mono text-amber-700">+₹{totals.totalSundayAmt.toLocaleString('en-IN')}</span>
+                    <span className="font-mono text-amber-700">+₹{totals.totalWeeklyOffAmt.toLocaleString('en-IN')}</span>
+                  </td>
+                  <td className="py-4 px-4 text-right"></td>
+                  <td className="py-4 px-4 text-right">
+                    <span className="font-mono text-amber-700">+₹{totals.totalHolidayAmt.toLocaleString('en-IN')}</span>
                   </td>
                   <td className="py-4 px-4 text-right">
                     <span className="font-mono font-black text-[#1184b0] text-sm bg-sky-100 px-3 py-1.5 rounded-xl border border-sky-300 shadow-xs">

@@ -23,15 +23,16 @@ export const AttendanceAnalyticsCharts: React.FC<AttendanceAnalyticsChartsProps>
     ? locations 
     : (Array.isArray(stats?.locationBreakdown) ? stats.locationBreakdown : []);
 
-  // Exact Attendance Status Ratio Calculations from backend
-  const totalWorkforce = stats?.totalWorkforce ?? 328;
-  const present = stats?.presentCount ?? stats?.todayActiveEmployees ?? 0;
-  const absent = stats?.absentCount ?? Math.max(0, totalWorkforce - present);
+  // Counts come from the backend resolver; the shares below are only chart geometry (count / roster).
+  const totalWorkforce = stats?.totalWorkforce ?? 0;
+  const present = stats?.presentCount ?? 0;
+  const absent = stats?.absentCount ?? 0;
   const halfDay = stats?.halfDayCount ?? 0;
 
-  const presentPct = stats?.attendanceRate ?? (Math.round((present / (totalWorkforce || 1)) * 100) || 0);
-  const absentPct = stats?.absenteeismRate ?? (Math.round((absent / (totalWorkforce || 1)) * 100) || 0);
-  const halfDayPct = Math.round((halfDay / (totalWorkforce || 1)) * 100) || 0;
+  const share = (n: number) => (totalWorkforce > 0 ? Math.round((n / totalWorkforce) * 100) : 0);
+  const presentPct = share(present);
+  const absentPct = share(absent);
+  const halfDayPct = share(halfDay);
 
   // Dynamic hourly punch distribution
   const hourlyData = (stats?.hourlyDistribution && stats.hourlyDistribution.length > 0)
@@ -175,7 +176,7 @@ export const AttendanceAnalyticsCharts: React.FC<AttendanceAnalyticsChartsProps>
               {/* Center Content */}
               <div className="absolute flex flex-col items-center justify-center text-center">
                 <span className="text-3xl font-heading font-extrabold text-slate-900 tracking-tight">
-                  {presentPct}%
+                  {stats?.attendanceRate == null ? 'N/A' : `${stats.attendanceRate}%`}
                 </span>
                 <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">
                   Attendance Rate
@@ -225,7 +226,7 @@ export const AttendanceAnalyticsCharts: React.FC<AttendanceAnalyticsChartsProps>
                 <div className="w-3.5 h-3.5 rounded-full bg-amber-500 shadow-sm shadow-amber-500/50" />
                 <div>
                   <h4 className="text-xs font-bold text-slate-900 font-heading">Half-Day (P/2)</h4>
-                  <p className="text-[11px] text-slate-500">Less than 480 minutes working hours recorded</p>
+                  <p className="text-[11px] text-slate-500">Worked less than a full day (per the shift policy)</p>
                 </div>
               </div>
               <div className="text-right">
@@ -282,14 +283,13 @@ export const AttendanceAnalyticsCharts: React.FC<AttendanceAnalyticsChartsProps>
       {activeChartTab === 'locations' && (
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {(safeLocations.length > 0 ? safeLocations : [
-              { sourceId: 'office', sourceName: 'ColorMyles', todayPunches: 21, activeEmployeesToday: 20, totalPunches: 21, lastSync: new Date().toISOString(), status: 'connected' },
-              { sourceId: 'budigere', sourceName: 'Budigere', todayPunches: 256, activeEmployeesToday: 206, totalPunches: 256, lastSync: new Date().toISOString(), status: 'connected' },
-              { sourceId: 'bidarahalli', sourceName: 'Bidarahalli', todayPunches: 50, activeEmployeesToday: 49, totalPunches: 50, lastSync: new Date().toISOString(), status: 'connected' },
-            ]).map((loc) => {
+            {safeLocations.length === 0 && (
+              <p className="text-xs text-slate-500 md:col-span-3">No location data for this date.</p>
+            )}
+            {safeLocations.map((loc) => {
               const count = loc.todayPunches || 0;
               const sharePct = Math.round((count / totalLocPunches) * 100) || 0;
-              const isPrimary = loc.sourceId === 'budigere';
+              const isPrimary = count > 0 && count === Math.max(...safeLocations.map((l) => l.todayPunches || 0));
 
               return (
                 <div
@@ -317,7 +317,7 @@ export const AttendanceAnalyticsCharts: React.FC<AttendanceAnalyticsChartsProps>
 
                   <div className="flex items-center justify-between text-[11px] text-slate-500">
                     <span>{count} Swipes recorded</span>
-                    <span>{loc.activeEmployeesToday || 0} Unique Staff</span>
+                    <span>{loc.presentCount} Present of {loc.totalWorkforce}</span>
                   </div>
                 </div>
               );

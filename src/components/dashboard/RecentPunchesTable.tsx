@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Fingerprint, ArrowRight, Building2, MonitorDot, Search, RefreshCw } from 'lucide-react';
-import { AttendanceRecord } from '../../types';
+import { RawPunch } from '../../types';
 import { TableSkeleton } from '../common/TableSkeleton';
 import { EmptyState } from '../common/EmptyState';
 
 interface RecentPunchesTableProps {
-  punches: AttendanceRecord[];
+  punches: RawPunch[];
   isLoading: boolean;
   onSyncTrigger?: () => void;
 }

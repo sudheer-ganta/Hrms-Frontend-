@@ -6,6 +6,7 @@ import {
   Download, 
   X
 } from 'lucide-react';
+import { istToday } from '../../lib/businessDate';
 
 interface AttendanceFilterBarProps {
   fromDate: string;
@@ -37,7 +38,7 @@ export const AttendanceFilterBar: React.FC<AttendanceFilterBarProps> = ({
   isRefreshing,
 }) => {
   const handleQuickToday = () => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = istToday();
     onFromDateChange(today);
     onToDateChange(today);
   };

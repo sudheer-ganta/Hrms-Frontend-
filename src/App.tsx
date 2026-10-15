@@ -35,12 +35,9 @@ const queryClient = new QueryClient({
 });
 
 const MainLayout: React.FC = () => {
-  const { user, isEmployee } = useAuth();
-  const [sources, setSources] = useState<AttendanceSource[]>([
-    { id: 'office', name: 'ColorMyles', status: 'connected' },
-    { id: 'budigere', name: 'Budigere', status: 'connected' },
-    { id: 'bidarahalli', name: 'Bidarahalli', status: 'connected' },
-  ]);
+  const { isEmployee } = useAuth();
+  // Sources come from the backend only (no invented defaults).
+  const [sources, setSources] = useState<AttendanceSource[]>([]);
 
   const [activeSourceId, setActiveSourceId] = useState<string>('all');
   const [isSyncModalOpen, setIsSyncModalOpen] = useState<boolean>(false);
@@ -49,12 +46,9 @@ const MainLayout: React.FC = () => {
 
   const loadSources = async () => {
     try {
-      const data = await api.getSources();
-      if (data && data.length > 0) {
-        setSources(data);
-      }
+      setSources(await api.getSources());
     } catch (err) {
-      console.warn('Using default configured sources:', err);
+      console.warn('Could not load sources:', err);
     }
   };
 

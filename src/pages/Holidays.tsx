@@ -13,9 +13,17 @@ import {
   CalendarCheck2
 } from 'lucide-react';
 import { api } from '../services/api';
+import { useDataVersion } from '../services/dataSync';
 import { HRMSPolicySettings, CompanyHoliday } from '../types';
+import { useAuth } from '../context/AuthContext';
+import { errorMessage } from '../lib/apiError';
+import { formatBusinessDate, istMonth, istToday } from '../lib/businessDate';
 
 export const Holidays: React.FC = () => {
+  const { isEmployee } = useAuth();
+  const canManage = !isEmployee; // the server enforces this too; the UI just does not offer what would be refused
+  const [error, setError] = useState<string | null>(null);
+  const [newPaid, setNewPaid] = useState<boolean>(true);
   const [policy, setPolicy] = useState<HRMSPolicySettings | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isAdding, setIsAdding] = useState<boolean>(false);
@@ -33,15 +41,16 @@ export const Holidays: React.FC = () => {
       const data = await api.getPolicySettings();
       setPolicy(data);
     } catch (err) {
-      console.error('Failed to load corporate holidays:', err);
+      setError(errorMessage(err, 'Failed to load the holiday calendar'));
     } finally {
       setIsLoading(false);
     }
   };
 
+  const dataVersion = useDataVersion();
   useEffect(() => {
     loadData();
-  }, []);
+  }, [dataVersion]);
 
   const handleAddHoliday = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,14 +62,16 @@ export const Holidays: React.FC = () => {
         date: newDate,
         name: newName.trim(),
         type: newType,
+        paid: newPaid,
       });
       setNewDate('');
       setNewName('');
-      setSuccessMessage(`Holiday "${newName.trim()}" added successfully! All employees will receive paid holiday credit.`);
+      setSuccessMessage(`Holiday "${newName.trim()}" added.`);
+      setError(null);
       setTimeout(() => setSuccessMessage(null), 4000);
       await loadData();
     } catch (err) {
-      console.error('Failed to add holiday:', err);
+      setError(errorMessage(err, 'Failed to add the holiday'));
     } finally {
       setIsAdding(false);
     }
@@ -76,7 +87,7 @@ export const Holidays: React.FC = () => {
       setTimeout(() => setSuccessMessage(null), 3000);
       await loadData();
     } catch (err) {
-      console.error('Failed to delete holiday:', err);
+      setError(errorMessage(err, 'Failed to delete the holiday'));
     } finally {
       setDeleteLoadingId(null);
     }
@@ -85,8 +96,8 @@ export const Holidays: React.FC = () => {
   const holidays = (policy?.holidays || []).sort((a, b) => a.date.localeCompare(b.date));
 
   // Current year / upcoming breakdown
-  const currentYear = new Date().getFullYear();
-  const currentMonth = new Date().toISOString().substring(0, 7);
+  const currentMonth = istMonth();
+  const todayStr = istToday();
 
   const monthHolidays = holidays.filter(h => h.date.startsWith(currentMonth));
 
@@ -100,13 +111,13 @@ export const Holidays: React.FC = () => {
             <span>Corporate Paid Holidays & Calendar</span>
           </h1>
           <p className="text-xs text-slate-500 font-sans mt-0.5">
-            Add company-wide festival and national holidays. Every holiday added here is 100% paid with <strong>0 Loss of Pay (LOP)</strong> deduction for all employees.
+            Company-wide festival and national holidays. A paid holiday is a company day-off for everyone with <strong>0 Loss of Pay</strong>. An optional holiday is an ordinary working day unless it is marked as a paid day-off.
           </p>
         </div>
 
         <div className="flex items-center gap-2 bg-purple-50 border border-purple-200/80 px-3.5 py-2 rounded-xl text-purple-800 text-xs font-semibold shadow-xs">
           <ShieldCheck className="w-4 h-4 text-purple-600" />
-          <span>Full Salary Pay Protection Active</span>
+          <span>Dates follow IST business days</span>
         </div>
       </div>
 
@@ -115,6 +126,13 @@ export const Holidays: React.FC = () => {
         <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-semibold flex items-center gap-2 animate-in fade-in slide-in-from-top-1">
           <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
           <span>{successMessage}</span>
+        </div>
+      )}
+
+      {error && (
+        <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-semibold flex items-center justify-between">
+          <span>{error}</span>
+          <button type="button" onClick={() => setError(null)} className="text-rose-600 font-bold px-2">x</button>
         </div>
       )}
 
@@ -133,9 +151,9 @@ export const Holidays: React.FC = () => {
 
         <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-card flex items-center justify-between">
           <div>
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">This Month (Sep 2026)</span>
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">This Month ({currentMonth})</span>
             <span className="text-2xl font-heading font-extrabold text-emerald-600 mt-1 block">{monthHolidays.length} Day</span>
-            <span className="text-[10px] text-slate-500">Credited to all 397+ staff</span>
+            <span className="text-[10px] text-slate-500">Credited to all active staff</span>
           </div>
           <div className="w-11 h-11 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold">
             <Sparkles className="w-5 h-5" />
@@ -144,9 +162,9 @@ export const Holidays: React.FC = () => {
 
         <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-card flex items-center justify-between">
           <div>
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Pay Protection</span>
-            <span className="text-2xl font-heading font-extrabold text-[#1184b0] mt-1 block">100% Paid</span>
-            <span className="text-[10px] text-slate-500">0 LOP deduction applied</span>
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Paid day-offs</span>
+            <span className="text-2xl font-heading font-extrabold text-[#1184b0] mt-1 block">{holidays.filter((h) => h.paid).length} of {holidays.length}</span>
+            <span className="text-[10px] text-slate-500">0 LOP on paid holidays</span>
           </div>
           <div className="w-11 h-11 rounded-2xl bg-sky-100 text-[#1184b0] flex items-center justify-center font-bold">
             <ShieldCheck className="w-5 h-5" />
@@ -157,6 +175,7 @@ export const Holidays: React.FC = () => {
       {/* Main Container: Add Holiday Form + Holiday Calendar List */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Quick Add Form */}
+        {canManage && (
         <div className="lg:col-span-1 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-card space-y-4">
           <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
             <div className="w-7 h-7 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-xs">
@@ -207,16 +226,21 @@ export const Holidays: React.FC = () => {
               >
                 <option value="FESTIVAL">Festival Holiday</option>
                 <option value="NATIONAL">National Holiday</option>
-                <option value="OPTIONAL">Optional / Company Off</option>
+                <option value="OPTIONAL">Optional Holiday</option>
               </select>
             </div>
+
+            <label className="flex items-start gap-2 text-[11px] text-slate-700 font-medium">
+              <input type="checkbox" className="mt-0.5" checked={newPaid} onChange={(e) => setNewPaid(e.target.checked)} />
+              <span>Company day-off (paid for everyone). Untick for an optional holiday that is a normal working day.</span>
+            </label>
 
             <div className="p-3 rounded-xl bg-purple-50/70 border border-purple-100 text-[11px] text-purple-900 space-y-1">
               <span className="font-bold flex items-center gap-1">
                 <Sparkles className="w-3.5 h-3.5 text-purple-600" /> Auto-Syncs Immediately
               </span>
               <p className="text-[10px] text-purple-800/80 leading-relaxed">
-                When you click Add, this date will automatically be marked in purple in all 397+ employee monthly grids and credited as payable without loss of pay.
+                Paid holidays appear in purple on every employee calendar and carry no loss of pay. Months whose payroll is closed cannot be changed.
               </p>
             </div>
 
@@ -239,9 +263,10 @@ export const Holidays: React.FC = () => {
             </button>
           </form>
         </div>
+        )}
 
         {/* Right Column: Active Holidays List */}
-        <div className="lg:col-span-2 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-card space-y-4">
+        <div className={`${canManage ? 'lg:col-span-2' : 'lg:col-span-3'} bg-white p-5 rounded-2xl border border-slate-200/80 shadow-card space-y-4`}>
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-lg bg-sky-100 text-[#1184b0] flex items-center justify-center font-bold text-xs">
@@ -274,15 +299,8 @@ export const Holidays: React.FC = () => {
           ) : (
             <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
               {holidays.map((hol) => {
-                const dateObj = new Date(hol.date + 'T00:00:00');
-                const formattedDate = dateObj.toLocaleDateString('en-US', {
-                  weekday: 'short',
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                });
-
-                const isUpcoming = hol.date >= new Date().toISOString().substring(0, 10);
+                const formattedDate = formatBusinessDate(hol.date);
+                const isUpcoming = hol.date >= todayStr;
 
                 return (
                   <div
@@ -292,10 +310,10 @@ export const Holidays: React.FC = () => {
                     <div className="flex items-center gap-3.5">
                       <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-600 to-indigo-700 text-white flex flex-col items-center justify-center font-bold text-[11px] shadow-xs">
                         <span className="text-[9px] uppercase font-semibold leading-tight opacity-80">
-                          {dateObj.toLocaleDateString('en-US', { month: 'short' })}
+                          {formattedDate.split(' ')[1]}
                         </span>
                         <span className="text-sm font-extrabold leading-tight">
-                          {dateObj.getDate()}
+                          {Number(hol.date.slice(8, 10))}
                         </span>
                       </div>
 
@@ -323,10 +341,10 @@ export const Holidays: React.FC = () => {
 
                     <div className="flex items-center gap-2">
                       <span className="hidden sm:inline-block text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100">
-                        Paid Holiday (0 LOP)
+                        {hol.paid ? 'Paid day-off (0 LOP)' : 'Working day (optional)'}
                       </span>
 
-                      <button
+                      {canManage && (<button
                         type="button"
                         onClick={() => handleRemoveHoliday(hol.id, hol.name)}
                         disabled={deleteLoadingId === hol.id}
@@ -338,7 +356,7 @@ export const Holidays: React.FC = () => {
                         ) : (
                           <Trash2 className="w-3.5 h-3.5" />
                         )}
-                      </button>
+                      </button>)}
                     </div>
                   </div>
                 );

@@ -20,8 +20,10 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { api } from '../services/api';
-import { AttendanceSource, HRMSPolicySettings, SchedulerStatus, PayrollRunStatus } from '../types';
-import { getShiftStandardHours } from '../lib/utils';
+import { AttendanceSource, HRMSPolicySettings, SchedulerStatus, PayrollRunStatus, PolicyUpdate, DAY_NAMES, DayName, Site } from '../types';
+import { errorMessage } from '../lib/apiError';
+import { istMonth, formatBusinessDate, formatInstantIst } from '../lib/businessDate';
+import { useAuth } from '../context/AuthContext';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { PayrollCloseReviewModal } from '../components/settings/PayrollCloseReviewModal';
 
@@ -29,9 +31,14 @@ interface SettingsPageProps {
   sources: AttendanceSource[];
 }
 
-const currentMonthKey = () => new Date().toISOString().slice(0, 7);
+const currentMonthKey = () => istMonth();
 
 export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
+  const { isSuperAdmin } = useAuth();
+  const [pageError, setPageError] = useState<string | null>(null);
+  const [sites, setSites] = useState<Site[]>([]);
+  const [siteDrafts, setSiteDrafts] = useState<Record<string, { lat: string; lng: string; radiusM: string }>>({});
+  const [newHolidayPaid, setNewHolidayPaid] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<'policy' | 'holidays' | 'scheduler' | 'sources' | 'payroll'>('policy');
   const [policy, setPolicy] = useState<HRMSPolicySettings | null>(null);
   const [scheduler, setScheduler] = useState<SchedulerStatus | null>(null);
@@ -56,14 +63,17 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
   const loadSettingsData = async () => {
     setIsLoading(true);
     try {
-      const [policyData, schedulerData] = await Promise.all([
+      const [policyData, schedulerData, siteData] = await Promise.all([
         api.getPolicySettings(),
         api.getSchedulerStatus(),
+        api.getSites(),
       ]);
       setPolicy(policyData);
       setScheduler(schedulerData);
+      setSites(siteData);
+      setSiteDrafts(Object.fromEntries(siteData.map((st) => [st.siteId, { lat: st.geo ? String(st.geo.lat) : '', lng: st.geo ? String(st.geo.lng) : '', radiusM: st.geo ? String(st.geo.radiusM) : '' }])));
     } catch (err) {
-      console.error('Failed to load settings:', err);
+      setPageError(errorMessage(err, 'Failed to load settings'));
     } finally {
       setIsLoading(false);
     }
@@ -83,8 +93,8 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
       ]);
       setPayrollRunStatus(status);
       setPayrollRunHistory(history);
-    } catch (err: any) {
-      setPayrollActionError(err.response?.data?.error || err.message || 'Failed to load payroll run status');
+    } catch (err) {
+      setPayrollActionError(errorMessage(err, 'Failed to load payroll run status'));
     } finally {
       setIsPayrollLoading(false);
     }
@@ -102,17 +112,18 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
   };
 
   const handleReopenPayroll = async () => {
-    if (!window.confirm(
-      `Reopen ${payrollMonth} payroll?\n\nIt will go back to live calculation (recalculated from current attendance data) until you close it again. The old locked numbers stay visible in the history below.`
-    )) return;
+    const reason = window.prompt(
+      `Reopen ${payrollMonth} payroll?\n\nThe month goes back to live calculation until you close it again. Every earlier snapshot stays in the history.\n\nEnter the reason (required):`
+    );
+    if (!reason || reason.trim().length < 5) return;
 
     setIsPayrollActionBusy(true);
     setPayrollActionError(null);
     try {
-      await api.reopenPayrollMonth(payrollMonth);
+      await api.reopenPayrollMonth(payrollMonth, reason.trim());
       await loadPayrollRunData(payrollMonth);
-    } catch (err: any) {
-      setPayrollActionError(err.response?.data?.error || err.message || 'Failed to reopen payroll month');
+    } catch (err) {
+      setPayrollActionError(errorMessage(err, 'Failed to reopen payroll month'));
     } finally {
       setIsPayrollActionBusy(false);
     }
@@ -123,12 +134,17 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
     if (!policy) return;
     setIsSaving(true);
     try {
-      const updated = await api.updatePolicySettings(policy);
+      const payload: PolicyUpdate = {
+        shift: policy.shift, overtime: policy.overtime, offDayWork: policy.offDayWork, leaves: policy.leaves,
+        weeklyOffDays: policy.weeklyOffDays, scheduler: policy.scheduler, ess: policy.ess,
+      };
+      const updated = await api.updatePolicySettings(payload);
       setPolicy(updated);
+      setPageError(null);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {
-      console.error('Failed to update policy:', err);
+      setPageError(errorMessage(err, 'Failed to update policy'));
     } finally {
       setIsSaving(false);
     }
@@ -142,21 +158,24 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
         date: newHolidayDate,
         name: newHolidayName,
         type: newHolidayType,
+        paid: newHolidayPaid,
       });
       setNewHolidayDate('');
       setNewHolidayName('');
+      setPageError(null);
       loadSettingsData();
     } catch (err) {
-      console.error('Failed to add holiday:', err);
+      setPageError(errorMessage(err, 'Failed to add holiday'));
     }
   };
 
   const handleRemoveHoliday = async (id: string) => {
     try {
       await api.removeHoliday(id);
+      setPageError(null);
       loadSettingsData();
     } catch (err) {
-      console.error('Failed to delete holiday:', err);
+      setPageError(errorMessage(err, 'Failed to delete holiday'));
     }
   };
 
@@ -165,7 +184,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
       const updated = await api.toggleScheduler();
       setScheduler(updated);
     } catch (err) {
-      console.error('Failed to toggle scheduler:', err);
+      setPageError(errorMessage(err, 'Failed to toggle the scheduler'));
     }
   };
 
@@ -174,7 +193,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
       await api.triggerSchedulerNow();
       loadSettingsData();
     } catch (err) {
-      console.error('Immediate sync failed:', err);
+      setPageError(errorMessage(err, 'Immediate sync failed'));
     }
   };
 
@@ -279,6 +298,10 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
             <div>
               <h3 className="text-sm font-heading font-bold text-slate-900">Shift Timing & Attendance Thresholds</h3>
               <p className="text-xs text-slate-500">Configure standard operating shift, grace window, and half-day limits</p>
+              <p className="mt-2 text-[11px] font-semibold text-brand-700 bg-brand-50 border border-brand-100 rounded-lg px-3 py-2">
+                These settings apply globally: to every employee and to every attendance, dashboard, timesheet, portal, report, export and payroll
+                calculation from the moment you save (policy v{policy.version}). Months that are already closed keep the policy they were closed under.
+              </p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -308,20 +331,9 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                   })}
                   className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
                 />
-                {(() => {
-                  const [sH, sM] = (policy.shift.startTime || '09:00').split(':').map(Number);
-                  const totalGraceMins = ((sH || 9) * 60 + (sM || 0)) + (policy.shift.gracePeriodMinutes || 0);
-                  const endH = Math.floor(totalGraceMins / 60) % 24;
-                  const endM = totalGraceMins % 60;
-                  const period = endH >= 12 ? 'PM' : 'AM';
-                  const displayH = endH % 12 === 0 ? 12 : endH % 12;
-                  const graceTimeFormatted = `${String(displayH).padStart(2, '0')}:${String(endM).padStart(2, '0')} ${period}`;
-                  return (
-                    <span className="text-[10px] text-slate-400 mt-1 block">
-                      Punches after {graceTimeFormatted} are flagged as Late In
-                    </span>
-                  );
-                })()}
+                <span className="text-[10px] text-slate-400 mt-1 block">
+                  Punches after {policy.derived?.lateAfter ?? '—'} (shift start + grace) are flagged as Late In
+                </span>
               </div>
 
               <div>
@@ -354,14 +366,14 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                 <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">Early Checkout Full-Day Cutoff</label>
                 <input
                   type="time"
-                  value={policy.shift.minCheckoutForFullDay || '16:00'}
+                  value={policy.shift.minCheckoutForFullDay || ''}
                   onChange={(e) => setPolicy({
                     ...policy,
                     shift: { ...policy.shift, minCheckoutForFullDay: e.target.value }
                   })}
                   className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
                 />
-                <span className="text-[10px] text-slate-400 mt-1 block">Checkout after {policy.shift.minCheckoutForFullDay || '16:00'} is credited as Full Day (P)</span>
+                <span className="text-[10px] text-slate-400 mt-1 block">{policy.shift.minCheckoutForFullDay ? `Checkout at or after ${policy.shift.minCheckoutForFullDay} (with at least the half-day hours) is credited as a full day` : 'Not set: only the full-day hours threshold applies'}</span>
               </div>
 
               <div>
@@ -402,6 +414,70 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
 
           {/* Overtime Policy */}
           <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-card space-y-4">
+            <div className="space-y-3 pb-4 border-b border-slate-100">
+              <div>
+                <h3 className="text-sm font-heading font-bold text-slate-900">Weekly Off Days</h3>
+                <p className="text-xs text-slate-500">Used by attendance, payroll, leave and every calendar. Nothing else decides which days are off.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {DAY_NAMES.map((day: DayName) => {
+                  const on = policy.weeklyOffDays.includes(day);
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => setPolicy({ ...policy, weeklyOffDays: on ? policy.weeklyOffDays.filter((d) => d !== day) : [...policy.weeklyOffDays, day] })}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition ${on ? 'bg-brand-500 text-white border-brand-500' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                    >
+                      {day.charAt(0) + day.slice(1, 3).toLowerCase()}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex items-center gap-3">
+                <label className="text-xs font-bold text-slate-700 font-heading">Web punch location check</label>
+                <select
+                  value={policy.ess.geofenceMode}
+                  onChange={(e) => setPolicy({ ...policy, ess: { geofenceMode: e.target.value as 'ENFORCE' | 'OFF' } })}
+                  className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold bg-white"
+                >
+                  <option value="ENFORCE">Enforce site geofence</option>
+                  <option value="OFF">Off</option>
+                </select>
+                <span className="text-[10px] text-slate-400">Enforced only for sites that have a location configured (Sources tab).</span>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-heading font-bold text-slate-900">Work on Weekly Off / Paid Holiday</h3>
+              <p className="text-xs text-slate-500">One rule, used by attendance, timesheet, portal and payroll</p>
+            </div>
+            <div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {(['weeklyOff', 'paidHoliday'] as const).map((kind) => (
+                  <div key={kind}>
+                    <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">
+                      {kind === 'weeklyOff' ? 'Work on a weekly off' : 'Work on a paid holiday'}
+                    </label>
+                    <select
+                      value={policy.offDayWork?.[kind]?.recognition ?? 'MANUAL'}
+                      onChange={(e) => setPolicy({
+                        ...policy,
+                        offDayWork: { ...policy.offDayWork, [kind]: { recognition: e.target.value as 'MANUAL' | 'AUTOMATIC' } },
+                      })}
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700"
+                    >
+                      <option value="MANUAL">Manual: HR enters the days in the OT calculator</option>
+                      <option value="AUTOMATIC">Automatic: recognized from punches and paid</option>
+                    </select>
+                  </div>
+                ))}
+              </div>
+              <span className="text-[10px] text-slate-400 mt-1 block">
+                Automatic uses the half-day / full-day thresholds above (full day = 1, half day = 0.5) and the existing off-day pay rate.
+              </span>
+            </div>
+
             <div>
               <h3 className="text-sm font-heading font-bold text-slate-900">Overtime (OT) Policy</h3>
               <p className="text-xs text-slate-500">Auto-calculate overtime hours for payroll processing</p>
@@ -427,7 +503,18 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
               <div>
                 <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">Overtime Starts After (Hours)</label>
                 <div className="w-full px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-700">
-                  {getShiftStandardHours(policy.shift.startTime, policy.shift.endTime)}h
+                  {(() => {
+                    if (policy.derived?.standardDayHours) return `${policy.derived.standardDayHours}h`;
+                    const s = policy.shift?.startTime || '09:00';
+                    const e = policy.shift?.endTime || '17:30';
+                    const [sh, sm] = s.split(':').map(Number);
+                    const [eh, em] = e.split(':').map(Number);
+                    const startMin = (sh || 0) * 60 + (sm || 0);
+                    let endMin = (eh || 0) * 60 + (em || 0);
+                    if (endMin < startMin) endMin += 1440;
+                    const hrs = Math.round(((endMin - startMin) / 60) * 10) / 10;
+                    return `${hrs}h`;
+                  })()}
                 </div>
                 <span className="text-[10px] text-slate-400 mt-1 block">
                   Auto-calculated from Shift Start/End time above ({policy.shift.startTime}&ndash;{policy.shift.endTime}) &mdash; change the shift timing to adjust this.
@@ -559,6 +646,13 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
         </form>
       )}
 
+      {pageError && (
+        <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center justify-between">
+          <span>{pageError}</span>
+          <button type="button" onClick={() => setPageError(null)} className="text-rose-500 font-bold">Dismiss</button>
+        </div>
+      )}
+
       {/* TAB 2: HOLIDAYS & WEEKLY OFFS */}
       {activeTab === 'holidays' && policy && (
         <div className="space-y-6">
@@ -566,7 +660,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
           <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-card space-y-4">
             <div>
               <h3 className="text-sm font-heading font-bold text-slate-900">Add Company Holiday</h3>
-              <p className="text-xs text-slate-500">Holidays are automatically marked as paid days (H) on employee timesheets</p>
+              <p className="text-xs text-slate-500">A paid holiday is a company day-off for everyone. Untick it for an optional holiday that is a normal working day.</p>
             </div>
 
             <form onSubmit={handleAddHoliday} className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
@@ -593,7 +687,10 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                 />
               </div>
 
-              <div>
+              <div className="space-y-1.5">
+                <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700">
+                  <input type="checkbox" checked={newHolidayPaid} onChange={(e) => setNewHolidayPaid(e.target.checked)} /> Company day-off (paid)
+                </label>
                 <button
                   type="submit"
                   className="w-full px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-xs font-heading font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5"
@@ -607,18 +704,18 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
 
           {/* Holiday List */}
           <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-card space-y-4">
-            <h3 className="text-sm font-heading font-bold text-slate-900">2026 Company Holidays Calendar</h3>
+            <h3 className="text-sm font-heading font-bold text-slate-900">Company Holidays Calendar</h3>
             <div className="divide-y divide-slate-100">
               {policy.holidays.map((hol) => (
                 <div key={hol.id} className="py-3 flex items-center justify-between group">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-sky-50 text-brand-600 border border-sky-200 flex flex-col items-center justify-center text-[10px] font-bold">
-                      <span>{new Date(hol.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short' })}</span>
-                      <span className="text-xs font-extrabold text-slate-900">{hol.date.split('-')[2]}</span>
+                      <span>{formatBusinessDate(hol.date).split(' ')[1]}</span>
+                      <span className="text-xs font-extrabold text-slate-900">{hol.date.slice(8, 10)}</span>
                     </div>
                     <div>
                       <h4 className="font-heading font-bold text-slate-900 text-xs">{hol.name}</h4>
-                      <p className="text-[10px] text-slate-400 font-mono">{hol.date} • {hol.type}</p>
+                      <p className="text-[10px] text-slate-400 font-mono">{formatBusinessDate(hol.date)} • {hol.type} • {hol.paid ? 'paid day-off' : 'working day (optional)'}</p>
                     </div>
                   </div>
 
@@ -744,18 +841,49 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
 
                 <div className="space-y-1.5 text-[11px] text-slate-600 border-t border-slate-100 pt-2 font-mono">
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Gateway:</span>
-                    <span className="text-slate-900 font-bold">API 2 & API 3</span>
+                    <span className="text-slate-500">Raw punches:</span>
+                    <span className="text-slate-900 font-bold">{src.lastRawSync ? `${src.lastRawSync.status} · ${formatInstantIst(src.lastRawSync.at)}` : 'never'}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Corporate ID:</span>
-                    <span className="text-slate-900 font-bold">Active in .env</span>
+                    <span className="text-slate-500">Daily IN/OUT:</span>
+                    <span className="text-slate-900 font-bold">{src.lastInOutSync ? `${src.lastInOutSync.status} · ${formatInstantIst(src.lastInOutSync.at)}` : 'never'}</span>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Password:</span>
-                    <span className="text-slate-900 font-bold">••••••••••</span>
-                  </div>
+                  {(src.lastRawSync?.error || src.lastInOutSync?.error) && (
+                    <p className="text-rose-600 font-sans">{src.lastRawSync?.error || src.lastInOutSync?.error}</p>
+                  )}
                 </div>
+
+                {(() => {
+                  const draft = siteDrafts[src.siteId] ?? { lat: '', lng: '', radiusM: '' };
+                  const setDraft = (patch: Partial<typeof draft>) => setSiteDrafts((d) => ({ ...d, [src.siteId]: { ...draft, ...patch } }));
+                  return (
+                    <div className="border-t border-slate-100 pt-3 space-y-2">
+                      <div className="text-[11px] font-bold text-slate-700 font-heading">Punch location (geofence)</div>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        <input placeholder="Latitude" value={draft.lat} onChange={(e) => setDraft({ lat: e.target.value })} className="px-2 py-1.5 rounded-lg border border-slate-200 text-[11px] font-mono" />
+                        <input placeholder="Longitude" value={draft.lng} onChange={(e) => setDraft({ lng: e.target.value })} className="px-2 py-1.5 rounded-lg border border-slate-200 text-[11px] font-mono" />
+                        <input placeholder="Radius m" value={draft.radiusM} onChange={(e) => setDraft({ radiusM: e.target.value })} className="px-2 py-1.5 rounded-lg border border-slate-200 text-[11px] font-mono" />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            const empty = !draft.lat && !draft.lng && !draft.radiusM;
+                            await api.updateSite(src.siteId, { geo: empty ? null : { lat: Number(draft.lat), lng: Number(draft.lng), radiusM: Number(draft.radiusM) } });
+                            setPageError(null);
+                            await loadSettingsData();
+                          } catch (err) {
+                            setPageError(errorMessage(err, 'Could not save the location'));
+                          }
+                        }}
+                        className="w-full py-1.5 text-[11px] font-bold text-brand-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded-lg"
+                      >
+                        Save location
+                      </button>
+                      <p className="text-[10px] text-slate-400 font-sans">{sites.find((st) => st.siteId === src.siteId)?.geo ? 'Web punches must be inside this circle.' : 'No location set: web punches for this site are not location-checked.'}</p>
+                    </div>
+                  );
+                })()}
               </div>
             ))}
           </div>
@@ -832,9 +960,9 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                     </div>
                     <p className="text-[11px] text-slate-600 mt-0.5">
                       {payrollRunStatus.status === 'CLOSED' &&
-                        `Locked by ${payrollRunStatus.closedBy} on ${payrollRunStatus.closedAt ? new Date(payrollRunStatus.closedAt).toLocaleString() : ''} · ${payrollRunStatus.employeeCount} employees · ₹${(payrollRunStatus.totalNetPaid || 0).toLocaleString('en-IN')} total net pay`}
+                        `Locked (snapshot v${payrollRunStatus.currentVersion ?? 1}) by ${payrollRunStatus.closedBy} on ${formatInstantIst(payrollRunStatus.closedAt)} IST · ${payrollRunStatus.employeeCount} employees · ₹${(payrollRunStatus.totalNetPaid || 0).toLocaleString('en-IN')} total net pay`}
                       {payrollRunStatus.status === 'REOPENED' &&
-                        `Reopened by ${payrollRunStatus.reopenedBy} on ${payrollRunStatus.reopenedAt ? new Date(payrollRunStatus.reopenedAt).toLocaleString() : ''} — recalculating live until closed again.`}
+                        `Reopened by ${payrollRunStatus.reopenedBy} on ${formatInstantIst(payrollRunStatus.reopenedAt)} IST${payrollRunStatus.reopenReason ? ` (${payrollRunStatus.reopenReason})` : ''}: recalculating live until closed again.`}
                       {payrollRunStatus.status === 'OPEN' &&
                         'Never closed — figures are calculated live from current attendance data.'}
                     </p>
@@ -842,6 +970,9 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                 </div>
 
                 {payrollRunStatus.status === 'CLOSED' ? (
+                  !isSuperAdmin ? (
+                    <span className="text-[11px] font-semibold text-amber-800 bg-white border border-amber-300 rounded-xl px-3 py-2 shrink-0">Only a Super Admin can reopen a closed month</span>
+                  ) : (
                   <button
                     type="button"
                     onClick={handleReopenPayroll}
@@ -851,6 +982,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                     <Unlock className="w-3.5 h-3.5" />
                     <span>{isPayrollActionBusy ? 'Reopening…' : `Reopen ${payrollMonth}`}</span>
                   </button>
+                  )
                 ) : (
                   <button
                     type="button"

@@ -3,7 +3,9 @@ import { LocationTabs } from '../components/layout/LocationTabs';
 import { TableSkeleton } from '../components/common/TableSkeleton';
 import { EmptyState } from '../components/common/EmptyState';
 import { api } from '../services/api';
-import { AttendanceSource, EmployeeProfile, EmployeePayrollSummary, InOutRecord } from '../types';
+import { useDataVersion } from '../services/dataSync';
+import { AttendanceSource, EmployeeProfile, EmployeePayrollSummary } from '../types';
+import { istMonth } from '../lib/businessDate';
 import { Users, Search, Building2, Edit3, DollarSign, Download, Eye, Mail, Calendar, UserCheck } from 'lucide-react';
 import { EmployeeDrawer } from '../components/employees/EmployeeDrawer';
 import { EditEmployeeModal } from '../components/employees/EditEmployeeModal';
@@ -25,7 +27,6 @@ export const Employees: React.FC<EmployeesPageProps> = ({
 }) => {
   const [profiles, setProfiles] = useState<EmployeeProfile[]>([]);
   const [payrollSummaries, setPayrollSummaries] = useState<Record<string, EmployeePayrollSummary>>({});
-  const [inOutRecords, setInOutRecords] = useState<InOutRecord[]>([]);
   const [search, setSearch] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
@@ -33,8 +34,7 @@ export const Employees: React.FC<EmployeesPageProps> = ({
   const [selectedDrawerEmp, setSelectedDrawerEmp] = useState<{
     employeeCode: string;
     employeeName: string;
-    sourceName: string;
-    sourceId?: string;
+    siteName: string;
   } | null>(null);
 
   const [editEmpCode, setEditEmpCode] = useState<string | null>(null);
@@ -44,18 +44,17 @@ export const Employees: React.FC<EmployeesPageProps> = ({
   // screen shows the human-readable location name (e.g. "ColorMyles") — map it here
   // so this page doesn't leak internal ids into a manager-facing table.
   const getLocationName = (locId?: string): string => {
-    if (!locId) return 'Budigere';
-    const match = sources.find((s) => s.id.toLowerCase() === locId.toLowerCase());
+    if (!locId) return '-';
+    const match = sources.find((s) => s.siteId.toLowerCase() === locId.toLowerCase() || s.id.toLowerCase() === locId.toLowerCase());
     return match?.name || locId;
   };
 
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [allEmps, allPayroll, inOutRes] = await Promise.all([
+      const [allEmps, allPayroll] = await Promise.all([
         api.getAllEmployees().catch(() => [] as EmployeeProfile[]),
-        api.getAllPayroll().catch(() => [] as EmployeePayrollSummary[]),
-        api.getInOutAttendance({ limit: 500 }).catch(() => ({ data: [] as InOutRecord[] })),
+        api.getAllPayroll(istMonth()).catch(() => [] as EmployeePayrollSummary[]),
       ]);
 
       setProfiles(allEmps);
@@ -65,7 +64,6 @@ export const Employees: React.FC<EmployeesPageProps> = ({
         payrollMap[ps.empCode] = ps;
       }
       setPayrollSummaries(payrollMap);
-      setInOutRecords(inOutRes.data || []);
     } catch (err) {
       console.error('Error loading employee directory:', err);
     } finally {
@@ -73,17 +71,17 @@ export const Employees: React.FC<EmployeesPageProps> = ({
     }
   };
 
+  const dataVersion = useDataVersion();
   useEffect(() => {
     loadData();
-  }, [activeSourceId]);
+  }, [activeSourceId, dataVersion]);
 
   // Filter by location & search
   const filtered = profiles.filter((emp) => {
     // Location filter
     if (activeSourceId !== 'all') {
-      const empLoc = (emp.location || '').toLowerCase();
-      const targetLoc = activeSourceId.toLowerCase();
-      if (!empLoc.includes(targetLoc)) return false;
+      // location is the canonical site id, compared exactly
+      if ((emp.location || '').toLowerCase() !== activeSourceId.toLowerCase()) return false;
     }
 
     // Search filter
@@ -102,7 +100,7 @@ export const Employees: React.FC<EmployeesPageProps> = ({
   const handleExportDirectoryCSV = () => {
     const rows: string[] = [];
     rows.push(['ColorMyles HRMS — Complete Employee Master & Salary Directory'].map(s => `"${s}"`).join(','));
-    rows.push([`Generated At: ${new Date().toLocaleString()}`, `Total Employees: ${filtered.length}`].map(s => `"${s}"`).join(','));
+    rows.push([`Generated At: ${new Date().toLocaleString('en-GB', { timeZone: 'Asia/Kolkata' })} IST`, `Total Employees: ${filtered.length}`].map(s => `"${s}"`).join(','));
     rows.push('');
 
     const headers = [
@@ -135,8 +133,8 @@ export const Employees: React.FC<EmployeesPageProps> = ({
         emp.dob || '—',
         emp.email || '—',
         emp.phone || '—',
-        emp.department || 'Operations',
-        emp.designation || 'Staff',
+        emp.department || '—',
+        emp.designation || '—',
         getLocationName(emp.location),
         emp.monthlyCtc || '',
         emp.basicSalary || '',
@@ -260,8 +258,7 @@ export const Employees: React.FC<EmployeesPageProps> = ({
                         setSelectedDrawerEmp({
                           employeeCode: emp.empCode,
                           employeeName: emp.name,
-                          sourceName: getLocationName(emp.location),
-                          sourceId: emp.location?.toLowerCase() || 'budigere',
+                          siteName: getLocationName(emp.location),
                         })
                       }
                     >
@@ -296,8 +293,8 @@ export const Employees: React.FC<EmployeesPageProps> = ({
 
                       {/* Department / Designation */}
                       <td className="py-3.5 px-4">
-                        <span className="font-semibold text-slate-800 block">{emp.department || 'Operations'}</span>
-                        <span className="text-[10px] text-slate-400 block">{emp.designation || 'Staff'}</span>
+                        <span className="font-semibold text-slate-800 block">{emp.department || '—'}</span>
+                        <span className="text-[10px] text-slate-400 block">{emp.designation || '—'}</span>
                       </td>
 
                       {/* DOB */}
@@ -340,7 +337,7 @@ export const Employees: React.FC<EmployeesPageProps> = ({
                                 {ps.payableDays}d
                               </span>
                               <span className="text-[10px] text-slate-400 font-normal">
-                                / {ps.monthDays || 25}d
+                                / {ps.monthDays}d
                               </span>
                             </div>
                             <div className="flex items-center gap-1.5 mt-1">
@@ -386,8 +383,7 @@ export const Employees: React.FC<EmployeesPageProps> = ({
                               setSelectedDrawerEmp({
                                 employeeCode: emp.empCode,
                                 employeeName: emp.name,
-                                sourceName: getLocationName(emp.location),
-                                sourceId: emp.location?.toLowerCase() || 'budigere',
+                                siteName: getLocationName(emp.location),
                               })
                             }
                             className="p-1.5 rounded-lg text-slate-500 hover:text-[#1184b0] hover:bg-sky-50 border border-slate-200 transition"
@@ -430,7 +426,6 @@ export const Employees: React.FC<EmployeesPageProps> = ({
           isOpen={Boolean(selectedDrawerEmp)}
           onClose={() => setSelectedDrawerEmp(null)}
           employee={selectedDrawerEmp}
-          records={inOutRecords}
         />
       )}
 

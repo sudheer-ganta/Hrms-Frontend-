@@ -4,10 +4,9 @@ import {
   UserCheck, 
   UserX, 
   ClockAlert, 
-  CheckCircle2, 
-  AlertTriangle 
 } from 'lucide-react';
 import { DashboardStats } from '../../types';
+import { formatBusinessDate, istToday } from '../../lib/businessDate';
 
 interface StatsCardsProps {
   stats: DashboardStats | null;
@@ -16,27 +15,20 @@ interface StatsCardsProps {
 }
 
 export const StatsCards: React.FC<StatsCardsProps> = ({ stats, isLoading, selectedDate }) => {
-  const todayStr = new Date().toISOString().split('T')[0];
-  const isToday = !selectedDate || selectedDate === todayStr;
+  const isToday = !selectedDate || selectedDate === istToday();
+  const formattedDateLabel = selectedDate ? formatBusinessDate(selectedDate) : 'Today';
 
-  const formattedDateLabel = selectedDate 
-    ? new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    : 'Today';
-
-  const totalWorkforce = stats?.totalWorkforce ?? 327;
-  const present = stats?.presentCount ?? stats?.todayActiveEmployees ?? 0;
-  const absent = stats?.absentCount ?? Math.max(0, totalWorkforce - present);
-  const attendanceRate = stats?.attendanceRate ?? (Math.round((present / (totalWorkforce || 1)) * 100) || 0);
-  const absenteeismRate = stats?.absenteeismRate ?? (Math.round((absent / (totalWorkforce || 1)) * 100) || 0);
-  const lateCount = stats?.lateArrivalsCount ?? 0;
-  const halfDayCount = stats?.halfDayCount ?? 0;
-  const flagsTotal = lateCount + halfDayCount;
+  // Every figure comes from the backend. When it is not available we show "N/A", never an estimate.
+  const num = (v: number | undefined | null) => (stats && v !== undefined && v !== null ? v.toLocaleString() : 'N/A');
+  const pct = (v: number | null | undefined) => (v === null || v === undefined ? 'N/A' : `${v}%`);
+  const noRoster = !!stats && stats.totalWorkforce === 0;
+  const flagsTotal = stats ? stats.lateArrivalsCount + stats.halfDayCount : undefined;
 
   const cards = [
     {
       title: 'Total Workforce',
-      value: totalWorkforce.toLocaleString(),
-      subtitle: 'Enrolled active employees',
+      value: num(stats?.totalWorkforce),
+      subtitle: noRoster ? 'No active employees yet' : 'Active employees in scope',
       badge: 'Roster',
       badgeBg: 'text-brand-600 bg-sky-50 border border-sky-200/60',
       icon: Users,
@@ -46,9 +38,9 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ stats, isLoading, select
     },
     {
       title: isToday ? 'Present Today' : `Present (${formattedDateLabel})`,
-      value: present.toLocaleString(),
-      subtitle: `${attendanceRate}% verified biometric check-ins`,
-      badge: `${attendanceRate}% Present`,
+      value: num(stats?.presentCount),
+      subtitle: stats?.leaveCount ? `${stats.leaveCount} on paid leave, ${stats.weeklyOffCount} off` : `${stats?.weeklyOffCount ?? 0} off today`,
+      badge: `${pct(stats?.attendanceRate)} attendance`,
       badgeBg: 'text-emerald-700 bg-emerald-50 border border-emerald-200/60',
       icon: UserCheck,
       iconBg: 'bg-emerald-100 text-emerald-600',
@@ -57,21 +49,21 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ stats, isLoading, select
     },
     {
       title: isToday ? 'Absent / Unaccounted' : `Absent (${formattedDateLabel})`,
-      value: absent.toLocaleString(),
-      subtitle: 'No biometric swipe detected',
-      badge: `${absenteeismRate}% Absent`,
-      badgeBg: absent > 0 ? 'text-rose-700 bg-rose-50 border border-rose-200/60' : 'text-slate-600 bg-slate-50',
+      value: num(stats?.absentCount),
+      subtitle: 'Working day, no valid attendance',
+      badge: `${pct(stats?.absenteeismRate)} absent`,
+      badgeBg: (stats?.absentCount ?? 0) > 0 ? 'text-rose-700 bg-rose-50 border border-rose-200/60' : 'text-slate-600 bg-slate-50',
       icon: UserX,
       iconBg: 'bg-rose-100 text-rose-600',
       hoverBorder: 'hover:border-rose-500',
       glow: 'from-rose-400/10 to-red-500/20',
     },
     {
-      title: isToday ? 'Late Arrivals & P/2' : `Late & P/2 (${formattedDateLabel})`,
-      value: flagsTotal.toLocaleString(),
-      subtitle: `${lateCount} Late (>9:30 AM), ${halfDayCount} Half-day`,
-      badge: flagsTotal > 0 ? 'Shift Flags' : 'On Time',
-      badgeBg: flagsTotal > 0 ? 'text-amber-700 bg-amber-50 border border-amber-200/60' : 'text-emerald-700 bg-emerald-50',
+      title: isToday ? 'Late Arrivals & Half Days' : `Late & Half Day (${formattedDateLabel})`,
+      value: num(flagsTotal),
+      subtitle: `${stats?.lateArrivalsCount ?? 0} late (after shift start + grace), ${stats?.halfDayCount ?? 0} half-day`,
+      badge: (flagsTotal ?? 0) > 0 ? 'Shift Flags' : 'On Time',
+      badgeBg: (flagsTotal ?? 0) > 0 ? 'text-amber-700 bg-amber-50 border border-amber-200/60' : 'text-emerald-700 bg-emerald-50',
       icon: ClockAlert,
       iconBg: 'bg-amber-100 text-amber-600',
       hoverBorder: 'hover:border-amber-500',

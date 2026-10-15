@@ -18,11 +18,14 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
+import { errorMessage } from '../lib/apiError';
+import type { EmployeeProfile } from '../types';
+import type { User as AppUser, CreateUserInput } from '../types/auth.types';
 
 export const UserManagement: React.FC = () => {
   const { token } = useAuth();
-  const [users, setUsers] = useState<any[]>([]);
-  const [employeesList, setEmployeesList] = useState<any[]>([]);
+  const [users, setUsers] = useState<AppUser[]>([]);
+  const [employeesList, setEmployeesList] = useState<EmployeeProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('ALL');
@@ -30,11 +33,11 @@ export const UserManagement: React.FC = () => {
   // Modal states
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isResetPassModalOpen, setIsResetPassModalOpen] = useState(false);
-  const [selectedUserForReset, setSelectedUserForReset] = useState<any>(null);
+  const [selectedUserForReset, setSelectedUserForReset] = useState<AppUser | null>(null);
   const [newPassword, setNewPassword] = useState('');
 
   // Form state
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{ role: 'FOUNDER' | 'EMPLOYEE'; empCode: string; name: string; email: string; password: string }>({
     role: 'EMPLOYEE',
     empCode: '',
     name: '',
@@ -55,7 +58,7 @@ export const UserManagement: React.FC = () => {
       setUsers(userList || []);
       setEmployeesList(emps || []);
     } catch (err) {
-      console.error('Error loading users:', err);
+      setNotification({ type: 'error', message: errorMessage(err, 'Could not load users.') });
     } finally {
       setLoading(false);
     }
@@ -71,20 +74,27 @@ export const UserManagement: React.FC = () => {
       ...formData,
       empCode: code,
       name: selectedEmp ? selectedEmp.name : formData.name,
-      email: selectedEmp?.email || `${code.toLowerCase()}@colormyles.com`,
+      email: selectedEmp?.email || formData.email, // never invent an address; the admin types it
     });
   };
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.createUser(formData);
+      const payload: CreateUserInput = {
+        email: formData.email.trim(),
+        name: formData.name.trim() || undefined,
+        password: formData.password,
+        role: formData.role,
+        empCode: formData.role === 'EMPLOYEE' ? formData.empCode.trim() : undefined,
+      };
+      await api.createUser(payload);
       setNotification({ type: 'success', message: `Account created successfully for ${formData.name || formData.email}!` });
       setIsCreateModalOpen(false);
       setFormData({ role: 'EMPLOYEE', empCode: '', name: '', email: '', password: '' });
       loadData();
-    } catch (err: any) {
-      const message = err.response?.data?.message || err.message || 'Creation failed.';
+    } catch (err) {
+      const message = errorMessage(err, 'Creation failed.');
       setNotification({ type: 'error', message });
     }
   };
@@ -94,8 +104,8 @@ export const UserManagement: React.FC = () => {
       await api.toggleUserStatus(userId);
       setNotification({ type: 'success', message: 'User status updated.' });
       loadData();
-    } catch (err: any) {
-      const message = err.response?.data?.message || err.message || 'Failed to update status.';
+    } catch (err) {
+      const message = errorMessage(err, 'Failed to update status.');
       alert(message);
     }
   };
@@ -106,8 +116,8 @@ export const UserManagement: React.FC = () => {
       await api.deleteUser(userId);
       setNotification({ type: 'success', message: 'User deleted.' });
       loadData();
-    } catch (err: any) {
-      const message = err.response?.data?.message || err.message || 'Failed to delete user.';
+    } catch (err) {
+      const message = errorMessage(err, 'Failed to delete user.');
       alert(message);
     }
   };
@@ -115,13 +125,17 @@ export const UserManagement: React.FC = () => {
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUserForReset || !newPassword) return;
+    if (newPassword.length < 10 || !/[A-Za-z]/.test(newPassword) || !/\d/.test(newPassword)) {
+      setNotification({ type: 'error', message: 'Password must be at least 10 characters and contain a letter and a digit.' });
+      return;
+    }
     try {
-      await api.resetUserPassword(selectedUserForReset._id, newPassword);
+      await api.resetUserPassword(selectedUserForReset.id, newPassword);
       setNotification({ type: 'success', message: `Password reset successfully for ${selectedUserForReset.name}.` });
       setIsResetPassModalOpen(false);
       setNewPassword('');
-    } catch (err: any) {
-      const message = err.response?.data?.message || err.message || 'Failed to reset password.';
+    } catch (err) {
+      const message = errorMessage(err, 'Failed to reset password.');
       alert(message);
     }
   };
@@ -262,7 +276,7 @@ export const UserManagement: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredUsers.map((u) => (
-                <tr key={u._id} className="hover:bg-slate-50/70 transition-colors">
+                <tr key={u.id} className="hover:bg-slate-50/70 transition-colors">
                   <td className="py-3.5 px-5">
                     <div className="flex items-center gap-3">
                       <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs ${
@@ -331,7 +345,7 @@ export const UserManagement: React.FC = () => {
 
                         <button
                           title="Toggle Active/Inactive"
-                          onClick={() => handleToggleStatus(u._id)}
+                          onClick={() => handleToggleStatus(u.id)}
                           className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-indigo-600 transition-colors"
                         >
                           <Power className="w-4 h-4" />
@@ -339,7 +353,7 @@ export const UserManagement: React.FC = () => {
 
                         <button
                           title="Delete Account"
-                          onClick={() => handleDeleteUser(u._id, u.name)}
+                          onClick={() => handleDeleteUser(u.id, u.name)}
                           className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-rose-600 transition-colors"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -444,7 +458,7 @@ export const UserManagement: React.FC = () => {
                   type="password"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  placeholder="Set initial login password..."
+                  placeholder="At least 10 characters, letters and digits" autoComplete="new-password" minLength={10}
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-[#1184b0] focus:outline-none"
                   required
                 />
@@ -486,7 +500,7 @@ export const UserManagement: React.FC = () => {
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="New password..."
+                  placeholder="At least 10 characters, letters and digits" autoComplete="new-password" minLength={10}
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-[#1184b0] focus:outline-none"
                   required
                 />

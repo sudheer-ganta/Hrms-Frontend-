@@ -13,6 +13,9 @@ import {
   Sparkles
 } from 'lucide-react';
 import { api } from '../../services/api';
+import { errorMessage } from '../../lib/apiError';
+import { formatMinutes } from '../../lib/attendanceDisplay';
+import type { PunchStatus } from '../../types';
 
 interface EmployeePunchCardProps {
   empCode: string;
@@ -39,15 +42,7 @@ export const EmployeePunchCard: React.FC<EmployeePunchCardProps> = ({
   const [istDateStr, setIstDateStr] = useState<string>('');
 
   // Punch state
-  const [punchStatus, setPunchStatus] = useState<{
-    checkedIn: boolean;
-    checkedOut: boolean;
-    inTime: string;
-    outTime: string;
-    workTime: string;
-    statusLabel: string;
-    locationTag?: string;
-  } | null>(null);
+  const [punchStatus, setPunchStatus] = useState<PunchStatus | null>(null);
 
   const [geoState, setGeoState] = useState<GeoState>({
     loading: true,
@@ -91,18 +86,7 @@ export const EmployeePunchCard: React.FC<EmployeePunchCardProps> = ({
   // Fetch today's punch status from server
   const loadTodayPunchStatus = async () => {
     try {
-      const data = await api.getTodayPunchStatus(empCode);
-      if (data) {
-        setPunchStatus({
-          checkedIn: data.checkedIn,
-          checkedOut: data.checkedOut,
-          inTime: data.inTime,
-          outTime: data.outTime,
-          workTime: data.workTime,
-          statusLabel: data.statusLabel,
-          locationTag: data.sourceName,
-        });
-      }
+      setPunchStatus(await api.getTodayPunchStatus(empCode));
     } catch (err) {
       console.warn('Failed to load today punch status:', err);
     }
@@ -181,32 +165,21 @@ export const EmployeePunchCard: React.FC<EmployeePunchCardProps> = ({
         accuracy: geoState.accuracy,
       });
 
-      if (res.success) {
-        setNotification({
-          type: 'success',
-          message: res.message || `${punchType === 'IN' ? 'Check-In' : 'Check-Out'} successful!`,
-        });
-
-        await loadTodayPunchStatus();
-        if (onPunchSuccess) onPunchSuccess();
-      } else {
-        setNotification({
-          type: 'error',
-          message: res.error || 'Failed to record punch.',
-        });
-      }
-    } catch (err: any) {
-      setNotification({
-        type: 'error',
-        message: err?.response?.data?.error || err.message || 'Error executing punch.',
-      });
+      setNotification({ type: 'success', message: res.message });
+      setPunchStatus(res);
+      if (onPunchSuccess) onPunchSuccess();
+    } catch (err) {
+      setNotification({ type: 'error', message: errorMessage(err, 'Error executing punch.') });
     } finally {
       setSubmitting(false);
     }
   };
 
-  const isCheckedIn = punchStatus?.checkedIn && punchStatus.inTime !== '--:--';
-  const isCheckedOut = punchStatus?.checkedOut && punchStatus.outTime !== '--:--';
+  const isCheckedIn = !!punchStatus?.checkedIn;
+  const isCheckedOut = !!punchStatus?.checkedOut;
+  // The server decides what the next punch is; the UI only reflects it.
+  const canIn = punchStatus?.nextAction === 'IN';
+  const canOut = punchStatus?.nextAction === 'OUT';
 
   return (
     <div className="bg-gradient-to-br from-white via-slate-50/70 to-sky-50/40 rounded-2xl border border-slate-200/80 shadow-md p-5 sm:p-6 transition-all relative overflow-hidden">
@@ -228,7 +201,7 @@ export const EmployeePunchCard: React.FC<EmployeePunchCardProps> = ({
                 </span>
               </h2>
               <p className="text-xs text-slate-500 font-medium">
-                Punches are timestamped strictly on the server (Indian Standard Time) with GPS verification.
+                Punches are timestamped on the server (IST). Your location is verified against your office or unit.
               </p>
             </div>
           </div>
@@ -307,13 +280,13 @@ export const EmployeePunchCard: React.FC<EmployeePunchCardProps> = ({
             )}
           </div>
           <div className="text-xl font-bold font-mono text-slate-800 mb-3">
-            {punchStatus?.inTime || '--:--'}
+            {punchStatus?.firstIn || '--:--'}
           </div>
 
           <button
             type="button"
             onClick={() => handlePunch('IN')}
-            disabled={submitting}
+            disabled={submitting || !canIn}
             className={`w-full py-2.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-sm ${
               isCheckedIn
                 ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300'
@@ -321,7 +294,7 @@ export const EmployeePunchCard: React.FC<EmployeePunchCardProps> = ({
             }`}
           >
             <LogIn className="w-4 h-4" />
-            {submitting ? 'Recording...' : isCheckedIn ? 'Re-Punch In' : 'Check In (Punch IN)'}
+            {submitting ? 'Recording...' : isCheckedIn ? 'Checked in' : 'Check In (Punch IN)'}
           </button>
         </div>
 
@@ -338,13 +311,13 @@ export const EmployeePunchCard: React.FC<EmployeePunchCardProps> = ({
             )}
           </div>
           <div className="text-xl font-bold font-mono text-slate-800 mb-3">
-            {punchStatus?.outTime || '--:--'}
+            {punchStatus?.lastOut || '--:--'}
           </div>
 
           <button
             type="button"
             onClick={() => handlePunch('OUT')}
-            disabled={submitting}
+            disabled={submitting || !canOut}
             className={`w-full py-2.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-sm ${
               isCheckedOut
                 ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300'
@@ -354,7 +327,7 @@ export const EmployeePunchCard: React.FC<EmployeePunchCardProps> = ({
             }`}
           >
             <LogOut className="w-4 h-4" />
-            {submitting ? 'Recording...' : isCheckedOut ? 'Re-Punch Out' : 'Check Out (Punch OUT)'}
+            {submitting ? 'Recording...' : isCheckedOut ? 'Update Check-Out' : 'Check Out (Punch OUT)'}
           </button>
         </div>
 
@@ -366,7 +339,7 @@ export const EmployeePunchCard: React.FC<EmployeePunchCardProps> = ({
               <span className="text-amber-400 font-semibold">{punchStatus?.statusLabel || 'Pending'}</span>
             </div>
             <div className="text-2xl font-mono font-extrabold text-white mb-1">
-              {punchStatus?.workTime ? `${punchStatus.workTime} hrs` : '00:00 hrs'}
+              {`${formatMinutes(punchStatus?.workMinutes)} hrs`}
             </div>
           </div>
 

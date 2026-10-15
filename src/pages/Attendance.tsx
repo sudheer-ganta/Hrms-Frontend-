@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { LocationTabs } from '../components/layout/LocationTabs';
 import { InOutFilterBar } from '../components/attendance/InOutFilterBar';
 import { AttendanceSummaryMetrics } from '../components/attendance/AttendanceSummaryMetrics';
@@ -8,21 +8,21 @@ import { AttendanceTable } from '../components/attendance/AttendanceTable';
 import { AttendanceFilterBar } from '../components/attendance/AttendanceFilterBar';
 import { ErrorAlert } from '../components/common/ErrorAlert';
 import { api } from '../services/api';
+import { useDataVersion } from '../services/dataSync';
+import { errorMessage } from '../lib/apiError';
+import { datesBetween, istToday } from '../lib/businessDate';
+import { formatMinutes } from '../lib/attendanceDisplay';
 import {
-  InOutRecord,
-  InOutSummary,
-  EmployeeTimesheet,
-  AttendanceRecord,
+  AttendanceDay,
+  AttendanceSummary,
+  TimesheetEmployee,
+  RawPunch,
   Pagination,
   AttendanceSource,
-  EmployeePayrollSummary
+  EmployeePayrollSummary,
+  AttendanceStatus,
 } from '../types';
-import { 
-  CalendarCheck2, 
-  Clock, 
-  Table2, 
-  Fingerprint
-} from 'lucide-react';
+import { CalendarCheck2, Clock, Table2, Fingerprint } from 'lucide-react';
 
 interface AttendancePageProps {
   sources: AttendanceSource[];
@@ -31,42 +31,38 @@ interface AttendancePageProps {
   onOpenSync: (sourceId?: string) => void;
 }
 
-export const Attendance: React.FC<AttendancePageProps> = ({
-  sources,
-  activeSourceId,
-  onSelectSource,
-  onOpenSync,
-}) => {
+const downloadCsv = (filename: string, headers: string[], rows: (string | number)[][]) => {
+  const q = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+  const csv = [headers.map(q).join(','), ...rows.map((r) => r.map(q).join(','))].join('\r\n');
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
+export const Attendance: React.FC<AttendancePageProps> = ({ sources, activeSourceId, onSelectSource, onOpenSync }) => {
   const [activeTab, setActiveTab] = useState<'daily' | 'timesheet' | 'raw'>('daily');
 
-  // Daily In/Out State
-  const [inOutRecords, setInOutRecords] = useState<InOutRecord[]>([]);
-  const [inOutSummary, setInOutSummary] = useState<InOutSummary | undefined>();
-  const [inOutPagination, setInOutPagination] = useState<Pagination>({
-    page: 1,
-    limit: 50,
-    total: 0,
-    totalPages: 1,
-  });
+  // Daily view: one resolved row per employee per date
+  const [dayRows, setDayRows] = useState<AttendanceDay[]>([]);
+  const [daySummary, setDaySummary] = useState<AttendanceSummary | undefined>();
+  const [dayPagination, setDayPagination] = useState<Pagination>({ page: 1, limit: 50, total: 0, totalPages: 1 });
 
-  // Timesheet State
-  const [timesheets, setTimesheets] = useState<EmployeeTimesheet[]>([]);
+  // Timesheet
+  const [timesheets, setTimesheets] = useState<TimesheetEmployee[]>([]);
   const [timesheetDates, setTimesheetDates] = useState<string[]>([]);
   const [payrollSummaries, setPayrollSummaries] = useState<Record<string, EmployeePayrollSummary>>({});
 
-  // Raw Punches State
-  const [rawRecords, setRawRecords] = useState<AttendanceRecord[]>([]);
-  const [rawPagination, setRawPagination] = useState<Pagination>({
-    page: 1,
-    limit: 50,
-    total: 0,
-    totalPages: 1,
-  });
+  // Raw punches
+  const [rawRecords, setRawRecords] = useState<RawPunch[]>([]);
+  const [rawPagination, setRawPagination] = useState<Pagination>({ page: 1, limit: 50, total: 0, totalPages: 1 });
 
-  // Common Filters — default to today only, so opening this page doesn't pull a
-  // full month of records for every employee before you've even asked for it.
-  const [fromDate, setFromDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
-  const [toDate, setToDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [fromDate, setFromDate] = useState<string>(() => istToday());
+  const [toDate, setToDate] = useState<string>(() => istToday());
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [machineId, setMachineId] = useState<string>('');
@@ -74,170 +70,95 @@ export const Attendance: React.FC<AttendancePageProps> = ({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const generateDatesList = (start: string, end: string) => {
-    const list: string[] = [];
-    const current = new Date(start);
-    const last = new Date(end);
-    while (current <= last) {
-      list.push(current.toISOString().split('T')[0]);
-      current.setDate(current.getDate() + 1);
-    }
-    return list;
-  };
+  const siteId = activeSourceId !== 'all' ? activeSourceId : undefined;
 
-  const fetchDailyInOut = async (page = inOutPagination.page, limit = inOutPagination.limit) => {
+  const fetchDays = useCallback(async (page = 1, limit = dayPagination.limit) => {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await api.getInOutAttendance({
-        sourceId: activeSourceId !== 'all' ? activeSourceId : undefined,
-        fromDate,
-        toDate,
-        search: searchQuery.trim() || undefined,
-        status: statusFilter !== 'all' ? statusFilter : undefined,
-        page,
-        limit,
+      const res = await api.getAttendanceDays({
+        siteId, fromDate, toDate, search: searchQuery.trim() || undefined,
+        status: statusFilter !== 'all' ? (statusFilter as AttendanceStatus) : undefined, page, limit,
       });
-
-      setInOutRecords(res.data);
-      setInOutPagination(res.pagination);
-      setInOutSummary(res.summary);
-    } catch (err: any) {
-      setError(err.response?.data?.error || err.message || 'Failed to fetch attendance records');
+      setDayRows(res.data);
+      setDayPagination(res.pagination);
+      setDaySummary(res.summary);
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to fetch attendance records'));
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [siteId, fromDate, toDate, searchQuery, statusFilter, dayPagination.limit]);
 
-  const fetchTimesheet = async () => {
+  const fetchTimesheet = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const dates = generateDatesList(fromDate, toDate);
+      const dates = datesBetween(fromDate, toDate);
       setTimesheetDates(dates);
-
-      // Payroll figures (CTC, deductions, net pay) come from the real payroll
-      // engine — never recomputed client-side — so exports match every other
-      // screen exactly instead of drifting into their own, separately-buggy math.
-      const [res, payrollList] = await Promise.all([
-        api.getTimesheet({
-          sourceId: activeSourceId !== 'all' ? activeSourceId : undefined,
-          fromDate,
-          toDate,
-          search: searchQuery.trim() || undefined,
-        }),
+      // Payroll figures come from the payroll engine: the month the range ends in.
+      const [sheets, payroll] = await Promise.all([
+        api.getTimesheet({ siteId, fromDate, toDate, search: searchQuery.trim() || undefined }),
         api.getAllPayroll(toDate.slice(0, 7)).catch(() => [] as EmployeePayrollSummary[]),
       ]);
-
-      setTimesheets(res.data);
-      const payrollMap: Record<string, EmployeePayrollSummary> = {};
-      for (const p of payrollList) payrollMap[p.empCode] = p;
-      setPayrollSummaries(payrollMap);
-    } catch (err: any) {
-      setError(err.response?.data?.error || err.message || 'Failed to load timesheet matrix');
+      setTimesheets(sheets);
+      const map: Record<string, EmployeePayrollSummary> = {};
+      for (const p of payroll) map[p.empCode] = p;
+      setPayrollSummaries(map);
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to load timesheet matrix'));
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [siteId, fromDate, toDate, searchQuery]);
 
-  const fetchRawPunches = async (page = rawPagination.page, limit = rawPagination.limit) => {
+  const fetchRawPunches = useCallback(async (page = 1, limit = rawPagination.limit) => {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await api.getAttendance({
-        sourceId: activeSourceId !== 'all' ? activeSourceId : undefined,
-        fromDate,
-        toDate,
-        search: searchQuery.trim() || undefined,
-        machineId: machineId.trim() || undefined,
-        page,
-        limit,
+      const res = await api.getRawPunches({
+        sourceId: activeSourceId !== 'all' ? activeSourceId : undefined, fromDate, toDate,
+        search: searchQuery.trim() || undefined, machineId: machineId.trim() || undefined, page, limit,
       });
-
       setRawRecords(res.data);
       setRawPagination(res.pagination);
-    } catch (err: any) {
-      setError(err.response?.data?.error || err.message || 'Failed to load raw punch records');
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to load raw punch records'));
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [activeSourceId, fromDate, toDate, searchQuery, machineId, rawPagination.limit]);
 
+  const dataVersion = useDataVersion();
   useEffect(() => {
-    if (activeTab === 'daily') {
-      fetchDailyInOut(1, inOutPagination.limit);
-    } else if (activeTab === 'timesheet') {
-      fetchTimesheet();
-    } else if (activeTab === 'raw') {
-      fetchRawPunches(1, rawPagination.limit);
-    }
-  }, [activeTab, activeSourceId, fromDate, toDate, searchQuery, statusFilter, machineId]);
+    if (activeTab === 'daily') fetchDays(1, dayPagination.limit);
+    else if (activeTab === 'timesheet') fetchTimesheet();
+    else fetchRawPunches(1, rawPagination.limit);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, activeSourceId, fromDate, toDate, searchQuery, statusFilter, machineId, dataVersion]);
 
   const handleExportCSV = () => {
     if (activeTab === 'daily') {
-      if (inOutRecords.length === 0) return;
-      const headers = [
-        'Employee Code',
-        'Employee Name',
-        'Location',
-        'Date',
-        'Check In',
-        'Check Out',
-        'Work Time',
-        'Overtime',
-        'Late In',
-        'Status',
-        'Remark',
-      ];
-      const rows = inOutRecords.map((r) => [
-        `"${r.employeeCode}"`,
-        `"${r.employeeName}"`,
-        `"${r.sourceName}"`,
-        `"${r.date}"`,
-        `"${r.inTime}"`,
-        `"${r.outTime}"`,
-        `"${r.workTime}"`,
-        `"${r.overTime}"`,
-        `"${r.lateIn}"`,
-        `"${r.statusLabel || r.status}"`,
-        `"${r.remark}"`,
-      ]);
-      const csvContent = [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.setAttribute('href', url);
-      link.setAttribute('download', `ColorMyles_Attendance_${activeSourceId}_${fromDate}_to_${toDate}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      if (dayRows.length === 0) return;
+      downloadCsv(
+        `ColorMyles_Attendance_${activeSourceId}_${fromDate}_to_${toDate}.csv`,
+        ['Employee Code', 'Employee Name', 'Location', 'Date', 'Check In', 'Check Out', 'Work Time', 'Overtime', 'Late (min)', 'Status', 'Source'],
+        dayRows.map((r) => [
+          r.employeeCode, r.employeeName, r.siteName ?? '', r.businessDate, r.firstIn ?? '', r.lastOut ?? '',
+          formatMinutes(r.workMinutes), formatMinutes(r.overtimeMinutes), r.isLate ? r.lateMinutes : 0, r.statusLabel,
+          r.manualOverride ? 'Approved request' : r.origins.join('+'),
+        ])
+      );
     } else if (activeTab === 'timesheet') {
       if (timesheets.length === 0) return;
-      const headers = ['Employee Code', 'Employee Name', 'Location', 'Present Days', 'Absent Days', 'Avg Hours/Day', ...timesheetDates];
-      const rows = timesheets.map((t) => {
-        const dayCols = timesheetDates.map((d) => {
-          const day = t.days[d];
-          return day ? `"${day.status} (${day.workTime})"` : '"-"';
-        });
-        return [
-          `"${t.employeeCode}"`,
-          `"${t.employeeName}"`,
-          `"${t.sourceName}"`,
-          `"${t.totalDaysPresent}"`,
-          `"${t.totalDaysAbsent}"`,
-          `"${t.avgHoursPerDay}"`,
-          ...dayCols,
-        ];
-      });
-      const csvContent = [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.setAttribute('href', url);
-      link.setAttribute('download', `ColorMyles_Timesheet_${activeSourceId}_${fromDate}_to_${toDate}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      downloadCsv(
+        `ColorMyles_Timesheet_${activeSourceId}_${fromDate}_to_${toDate}.csv`,
+        ['Employee Code', 'Employee Name', 'Location', 'Present', 'Half Days', 'Paid Leave', 'Absent', 'Work Hours', ...timesheetDates],
+        timesheets.map((t) => [
+          t.employeeCode, t.employeeName, t.siteName ?? '', t.totals.presentDays, t.totals.halfDays, t.totals.leaveDays, t.totals.absentDays,
+          formatMinutes(t.totals.workMinutes), ...timesheetDates.map((d) => t.days[d]?.statusLabel ?? ''),
+        ])
+      );
     }
   };
 
@@ -333,7 +254,7 @@ export const Attendance: React.FC<AttendancePageProps> = ({
           onToDateChange={setToDate}
           onSearchChange={setSearchQuery}
           onStatusFilterChange={setStatusFilter}
-          onRefresh={() => (activeTab === 'daily' ? fetchDailyInOut(inOutPagination.page, inOutPagination.limit) : fetchTimesheet())}
+          onRefresh={() => (activeTab === 'daily' ? fetchDays(dayPagination.page, dayPagination.limit) : fetchTimesheet())}
           onSyncNow={() => onOpenSync(activeSourceId !== 'all' ? activeSourceId : undefined)}
           onExportCSV={handleExportCSV}
           isRefreshing={isLoading}
@@ -344,20 +265,20 @@ export const Attendance: React.FC<AttendancePageProps> = ({
         <ErrorAlert
           title="Error Loading Attendance"
           message={error}
-          onRetry={() => (activeTab === 'daily' ? fetchDailyInOut() : activeTab === 'timesheet' ? fetchTimesheet() : fetchRawPunches())}
+          onRetry={() => (activeTab === 'daily' ? fetchDays() : activeTab === 'timesheet' ? fetchTimesheet() : fetchRawPunches())}
         />
       )}
 
       {/* Tab 1: Daily In/Out View */}
       {activeTab === 'daily' && (
         <div className="space-y-4">
-          <AttendanceSummaryMetrics summary={inOutSummary} isLoading={isLoading} />
+          <AttendanceSummaryMetrics summary={daySummary} isLoading={isLoading} />
           <DailyAttendanceTable
-            records={inOutRecords}
-            pagination={inOutPagination}
+            records={dayRows}
+            pagination={dayPagination}
             isLoading={isLoading}
-            onPageChange={(p) => fetchDailyInOut(p, inOutPagination.limit)}
-            onLimitChange={(l) => fetchDailyInOut(1, l)}
+            onPageChange={(p) => fetchDays(p, dayPagination.limit)}
+            onLimitChange={(l) => fetchDays(1, l)}
             onSyncTrigger={() => onOpenSync(activeSourceId !== 'all' ? activeSourceId : undefined)}
           />
         </div>

@@ -5,9 +5,12 @@ import { TableSkeleton } from '../components/common/TableSkeleton';
 import { EmptyState } from '../components/common/EmptyState';
 import { ErrorAlert } from '../components/common/ErrorAlert';
 import { api } from '../services/api';
+import { useDataVersion } from '../services/dataSync';
 import { SyncLog, Pagination, AttendanceSource } from '../types';
 import { History, RefreshCw, X } from 'lucide-react';
-import { formatDateTime, humanizeSyncError } from '../lib/utils';
+import { humanizeSyncError } from '../lib/utils';
+import { formatInstantIst as formatDateTime } from '../lib/businessDate';
+import { errorMessage } from '../lib/apiError';
 
 interface SyncHistoryPageProps {
   sources: AttendanceSource[];
@@ -50,16 +53,17 @@ export const SyncHistory: React.FC<SyncHistoryPageProps> = ({
 
       setLogs(res.data);
       setPagination(res.pagination);
-    } catch (err: any) {
-      setError(err.response?.data?.error || err.message || 'Failed to fetch sync history');
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to fetch sync history'));
     } finally {
       setIsLoading(false);
     }
   };
 
+  const dataVersion = useDataVersion();
   useEffect(() => {
     fetchLogs(1, pagination.limit);
-  }, [activeSourceId, statusFilter]);
+  }, [activeSourceId, statusFilter, dataVersion]);
 
   return (
     <div className="space-y-5 animate-in fade-in duration-300">

@@ -5,7 +5,10 @@ import { AttendanceAnalyticsCharts } from '../components/dashboard/AttendanceAna
 import { LocationTabs } from '../components/layout/LocationTabs';
 import { ErrorAlert } from '../components/common/ErrorAlert';
 import { api } from '../services/api';
+import { useDataVersion } from '../services/dataSync';
 import { DashboardStats, AttendanceSource } from '../types';
+import { addDays, formatBusinessDate, istToday } from '../lib/businessDate';
+import { errorMessage } from '../lib/apiError';
 import { 
   RefreshCw, 
   ArrowRight, 
@@ -31,7 +34,7 @@ export const Dashboard: React.FC<DashboardPageProps> = ({
   onSelectSource,
   onOpenSync,
 }) => {
-  const getTodayStr = () => new Date().toISOString().split('T')[0];
+  const getTodayStr = () => istToday();
   const [selectedDate, setSelectedDate] = useState<string>(getTodayStr());
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -45,42 +48,33 @@ export const Dashboard: React.FC<DashboardPageProps> = ({
     try {
       const data = await api.getDashboardStats({
         date: selectedDate,
-        sourceId: activeSourceId !== 'all' ? activeSourceId : undefined,
+        siteId: activeSourceId !== 'all' ? activeSourceId : undefined,
       });
       setStats(data);
-    } catch (err: any) {
-      setError(err.response?.data?.error || err.message || 'Failed to load dashboard data');
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to load dashboard data'));
     } finally {
       setIsLoading(false);
     }
   };
 
+  const dataVersion = useDataVersion();
   useEffect(() => {
     fetchStats();
-  }, [selectedDate, activeSourceId]);
+  }, [selectedDate, activeSourceId, dataVersion]);
 
   const changeDateByDays = (days: number) => {
-    const current = new Date(selectedDate + 'T00:00:00');
-    current.setDate(current.getDate() + days);
-    setSelectedDate(current.toISOString().split('T')[0]);
+    const next = addDays(selectedDate, days);
+    if (next <= getTodayStr()) setSelectedDate(next);
   };
 
-  const getYesterdayStr = () => {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    return d.toISOString().split('T')[0];
-  };
+  const getYesterdayStr = () => addDays(getTodayStr(), -1);
 
   const handleSyncLocation = (sourceId: string) => {
     onOpenSync(sourceId);
   };
 
-  const formattedDateTitle = new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  const formattedDateTitle = formatBusinessDate(selectedDate);
 
   const activeSourceObj = sources.find((s) => s.id === activeSourceId);
   const activeSourceName = activeSourceObj ? activeSourceObj.name : (activeSourceId === 'all' ? 'All Locations' : activeSourceId);
@@ -227,7 +221,7 @@ export const Dashboard: React.FC<DashboardPageProps> = ({
 
       {error && (
         <ErrorAlert
-          title="Could not connect to API"
+          title="Could not load the dashboard"
           message={error}
           onRetry={fetchStats}
         />

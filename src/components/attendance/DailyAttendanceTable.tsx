@@ -1,7 +1,10 @@
-import React from 'react';
-import { InOutRecord, Pagination } from '../../types';
+import React, { useState } from 'react';
+import { AttendanceDay, Pagination } from '../../types';
+import { metaFor } from '../../lib/attendanceDisplay';
+import { formatBusinessDate } from '../../lib/businessDate';
 import { TableSkeleton } from '../common/TableSkeleton';
 import { EmptyState } from '../common/EmptyState';
+import { DayAdjustmentModal } from './DayAdjustmentModal';
 import { 
   Building2, 
   LogIn, 
@@ -13,7 +16,7 @@ import {
 } from 'lucide-react';
 
 interface DailyAttendanceTableProps {
-  records: InOutRecord[];
+  records: AttendanceDay[];
   pagination: Pagination;
   isLoading: boolean;
   onPageChange: (newPage: number) => void;
@@ -29,66 +32,28 @@ export const DailyAttendanceTable: React.FC<DailyAttendanceTableProps> = ({
   onLimitChange,
   onSyncTrigger,
 }) => {
+  const [selectedDay, setSelectedDay] = useState<AttendanceDay | null>(null);
   const { page, limit, total, totalPages } = pagination;
 
-  const getStatusBadge = (status: string, label?: string) => {
-    const s = (status || '').toUpperCase();
-    if (s === 'P') {
-      return (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          Present
-        </span>
-      );
-    }
-    if (s === 'P/2') {
-      return (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-700 border border-amber-200">
-          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-          Half Day
-        </span>
-      );
-    }
-    if (s === 'A') {
-      return (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-100 text-rose-700 border border-rose-200">
-          <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-          Absent
-        </span>
-      );
-    }
-    if (s === 'W' || s === 'WO') {
-      return (
-        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
-          Weekly Off
-        </span>
-      );
-    }
+  const getStatusBadge = (r: AttendanceDay) => {
+    const meta = metaFor(r.status);
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600">
-        {label || status}
+      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border ${meta.badge}`}>
+        {r.inProgress ? 'Checked in' : meta.label}
       </span>
     );
   };
 
-  const getWorkTimeDisplay = (workTime: string, workMinutes: number, status: string) => {
-    if (status === 'A' || workMinutes === 0) {
-      return <span className="text-slate-400 font-mono text-xs font-semibold">--</span>;
-    }
-
-    const hours = Math.floor(workMinutes / 60);
-    const mins = workMinutes % 60;
-    const isFullDay = workMinutes >= 480;
-
+  const getWorkTimeDisplay = (r: AttendanceDay) => {
+    if (!r.workMinutes) return <span className="text-slate-400 font-mono text-xs font-semibold">--</span>;
+    // Colour follows the backend verdict (PRESENT vs everything else); no hour threshold lives here.
     return (
       <span
         className={`px-2.5 py-1 rounded-lg font-mono text-xs font-bold border ${
-          isFullDay
-            ? 'bg-sky-50 border-sky-200 text-brand-600'
-            : 'bg-amber-50 border-amber-200 text-amber-700'
+          r.status === 'PRESENT' ? 'bg-sky-50 border-sky-200 text-brand-600' : 'bg-amber-50 border-amber-200 text-amber-700'
         }`}
       >
-        {hours}h {mins}m
+        {Math.floor(r.workMinutes / 60)}h {r.workMinutes % 60}m
       </span>
     );
   };
@@ -120,12 +85,17 @@ export const DailyAttendanceTable: React.FC<DailyAttendanceTableProps> = ({
                   <th className="py-3.5 px-4">Work Hours</th>
                   <th className="py-3.5 px-4">Late In</th>
                   <th className="py-3.5 px-4 text-center">Status</th>
-                  <th className="py-3.5 px-4">Remarks</th>
+                  <th className="py-3.5 px-4">Source</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-                {records.map((r, idx) => (
-                  <tr key={r._id || `${r.recordKey || `${r.sourceId}_${r.employeeCode}_${r.date}`}_${idx}`} className="hover:bg-slate-50/80 transition-all group">
+                {records.map((r) => (
+                  <tr
+                    key={`${r.employeeCode}_${r.businessDate}`}
+                    onClick={() => setSelectedDay(r)}
+                    className="hover:bg-sky-50/50 transition-all group cursor-pointer"
+                    title="Click to view details or adjust/change to WFH"
+                  >
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2.5">
                         <div className="w-7 h-7 rounded-full bg-sky-100 border border-sky-200 flex items-center justify-center text-xs text-brand-600 font-extrabold shadow-xs shrink-0">
@@ -142,52 +112,56 @@ export const DailyAttendanceTable: React.FC<DailyAttendanceTableProps> = ({
                     <td className="py-3 px-4">
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-[11px] text-slate-700 font-medium">
                         <Building2 className="w-3 h-3 text-brand-500 shrink-0" />
-                        {r.sourceName}
+                        {r.siteName || '-'}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-slate-600 whitespace-nowrap font-mono text-[11px] font-medium">
-                      {r.date}
+                      {formatBusinessDate(r.businessDate)}
                     </td>
                     <td className="py-3 px-4 whitespace-nowrap font-mono text-xs">
-                      {r.inTime !== '--:--' ? (
+                      {r.firstIn ? (
                         <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded font-bold">
                           <LogIn className="w-3 h-3 text-emerald-600" />
-                          {r.inTime}
+                          {r.firstIn}
                         </span>
                       ) : (
                         <span className="text-slate-400 font-mono font-medium">--:--</span>
                       )}
                     </td>
                     <td className="py-3 px-4 whitespace-nowrap font-mono text-xs">
-                      {r.outTime !== '--:--' ? (
+                      {r.lastOut ? (
                         <span className="inline-flex items-center gap-1 text-cyan-700 bg-cyan-50 border border-cyan-200 px-2 py-0.5 rounded font-bold">
                           <LogOut className="w-3 h-3 text-cyan-600" />
-                          {r.outTime}
+                          {r.lastOut}
                         </span>
                       ) : (
                         <span className="text-slate-400 font-mono font-medium">--:--</span>
                       )}
                     </td>
                     <td className="py-3 px-4 whitespace-nowrap">
-                      {getWorkTimeDisplay(r.workTime, r.workMinutes, r.status)}
+                      {getWorkTimeDisplay(r)}
                     </td>
                     <td className="py-3 px-4 whitespace-nowrap font-mono text-xs">
-                      {r.lateIn && r.lateIn !== '00:00' && r.lateIn !== '--:--' ? (
+                      {!r.firstIn ? (
+                        <span className="text-slate-400 text-[11px]">-</span>
+                      ) : r.isLate ? (
                         <span className="text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded font-bold text-[11px]">
-                          +{r.lateIn}
+                          +{Math.floor(r.lateMinutes / 60)}h {r.lateMinutes % 60}m
                         </span>
                       ) : (
                         <span className="text-emerald-600 font-semibold text-[11px]">On Time</span>
                       )}
                     </td>
                     <td className="py-3 px-4 text-center whitespace-nowrap">
-                      {getStatusBadge(r.status, r.statusLabel)}
+                      {getStatusBadge(r)}
                     </td>
                     <td className="py-3 px-4 text-slate-500 text-[11px] font-mono">
-                      {r.remark && r.remark !== '--' ? (
-                        <span className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 font-medium">
-                          {r.remark}
+                      {r.manualOverride ? (
+                        <span className="px-2 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-indigo-700 font-medium" title="Applied from an approved request">
+                          Approved request
                         </span>
+                      ) : r.origins.includes('ESS_WEB') ? (
+                        <span className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 font-medium">Web punch</span>
                       ) : (
                         <span className="text-slate-400">-</span>
                       )}
@@ -269,6 +243,12 @@ export const DailyAttendanceTable: React.FC<DailyAttendanceTableProps> = ({
           </div>
         </>
       )}
+
+      <DayAdjustmentModal
+        isOpen={Boolean(selectedDay)}
+        onClose={() => setSelectedDay(null)}
+        day={selectedDay}
+      />
     </div>
   );
 };

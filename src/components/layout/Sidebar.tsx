@@ -293,8 +293,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ sources, isOpen = false, onClo
                     </div>
                     <span
                       className={`w-2 h-2 rounded-full ${
-                        src.status === 'connected' || src.status === 'ready'
+                        src.status === 'connected'
                           ? 'bg-emerald-500 shadow-sm shadow-emerald-500/50'
+                          : src.status === 'failed' || src.status === 'credentials_missing'
+                          ? 'bg-rose-500'
                           : 'bg-amber-400'
                       }`}
                       title={src.status}

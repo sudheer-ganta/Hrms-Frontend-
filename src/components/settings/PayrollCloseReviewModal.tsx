@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Lock, AlertTriangle, Users, IndianRupee, ShieldAlert } from 'lucide-react';
 import { api } from '../../services/api';
 import { EmployeePayrollSummary } from '../../types';
+import { errorMessage } from '../../lib/apiError';
 
 interface PayrollCloseReviewModalProps {
   month: string;
@@ -38,7 +39,7 @@ export const PayrollCloseReviewModal: React.FC<PayrollCloseReviewModalProps> = (
         }
       })
       .catch((err) => {
-        if (isMounted) setError(err.response?.data?.error || err.message || 'Failed to load payroll preview');
+        if (isMounted) setError(errorMessage(err, 'Failed to load payroll preview'));
       })
       .finally(() => {
         if (isMounted) setIsLoading(false);
@@ -62,8 +63,8 @@ export const PayrollCloseReviewModal: React.FC<PayrollCloseReviewModalProps> = (
     try {
       await api.closePayrollMonth(month);
       onConfirmed();
-    } catch (err: any) {
-      setError(err.response?.data?.error || err.message || 'Failed to close payroll month');
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to close payroll month'));
     } finally {
       setIsConfirming(false);
     }

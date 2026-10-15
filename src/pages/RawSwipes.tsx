@@ -5,9 +5,11 @@ import { TableSkeleton } from '../components/common/TableSkeleton';
 import { EmptyState } from '../components/common/EmptyState';
 import { ErrorAlert } from '../components/common/ErrorAlert';
 import { api } from '../services/api';
-import { AttendanceRecord, Pagination, AttendanceSource } from '../types';
+import { useDataVersion } from '../services/dataSync';
+import { RawPunch, Pagination, AttendanceSource } from '../types';
 import { Fingerprint } from 'lucide-react';
-import { formatDateTime } from '../lib/utils';
+import { formatInstantIst, istToday } from '../lib/businessDate';
+import { errorMessage } from '../lib/apiError';
 
 interface RawSwipesPageProps {
   sources: AttendanceSource[];
@@ -22,7 +24,7 @@ export const RawSwipes: React.FC<RawSwipesPageProps> = ({
   onSelectSource,
   onOpenSync,
 }) => {
-  const [records, setRecords] = useState<AttendanceRecord[]>([]);
+  const [records, setRecords] = useState<RawPunch[]>([]);
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
     limit: 50,
@@ -30,8 +32,8 @@ export const RawSwipes: React.FC<RawSwipesPageProps> = ({
     totalPages: 1,
   });
 
-  const [fromDate, setFromDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
-  const [toDate, setToDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [fromDate, setFromDate] = useState<string>(() => istToday());
+  const [toDate, setToDate] = useState<string>(() => istToday());
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [machineId, setMachineId] = useState<string>('');
 
@@ -42,7 +44,7 @@ export const RawSwipes: React.FC<RawSwipesPageProps> = ({
     setIsLoading(true);
     setError(null);
     try {
-      const res = await api.getRawSwipes({
+      const res = await api.getRawPunches({
         sourceId: activeSourceId !== 'all' ? activeSourceId : undefined,
         fromDate: fromDate || undefined,
         toDate: toDate || undefined,
@@ -54,16 +56,17 @@ export const RawSwipes: React.FC<RawSwipesPageProps> = ({
 
       setRecords(res.data);
       setPagination(res.pagination);
-    } catch (err: any) {
-      setError(err.response?.data?.error || err.message || 'Failed to fetch raw biometric swipes');
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to fetch raw biometric swipes'));
     } finally {
       setIsLoading(false);
     }
   };
 
+  const dataVersion = useDataVersion();
   useEffect(() => {
     fetchSwipes(1, pagination.limit);
-  }, [activeSourceId, fromDate, toDate, searchQuery, machineId]);
+  }, [activeSourceId, fromDate, toDate, searchQuery, machineId, dataVersion]);
 
   const handleExportCSV = () => {
     if (records.length === 0) return;
@@ -218,7 +221,7 @@ export const RawSwipes: React.FC<RawSwipesPageProps> = ({
                         {record.sourceName}
                       </td>
                       <td className="py-3.5 px-4 text-[11px] text-slate-500 font-mono">
-                        {formatDateTime(record.syncedAt)}
+                        {formatInstantIst(record.syncedAt)}
                       </td>
                     </tr>
                   ))}

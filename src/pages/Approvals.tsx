@@ -18,11 +18,12 @@ import {
   FileText
 } from 'lucide-react';
 import { api } from '../services/api';
+import { useDataVersion } from '../services/dataSync';
 import { AttendanceRegularizationRequest, EmployeeProfile } from '../types';
-import { useAuth } from '../context/AuthContext';
+import { errorMessage } from '../lib/apiError';
+import { formatBusinessDate } from '../lib/businessDate';
 
 export const Approvals: React.FC = () => {
-  const { user } = useAuth();
   const [requests, setRequests] = useState<AttendanceRegularizationRequest[]>([]);
   const [employees, setEmployees] = useState<EmployeeProfile[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -31,7 +32,9 @@ export const Approvals: React.FC = () => {
 
   // Filter & Search States
   const [statusTab, setStatusTab] = useState<'PENDING' | 'APPROVED' | 'REJECTED' | 'ALL'>('PENDING');
-  const [typeFilter, setTypeFilter] = useState<'ALL' | 'LEAVE' | 'MISSED_PUNCH'>('ALL');
+  const [typeFilter, setTypeFilter] = useState<'ALL' | AttendanceRegularizationRequest['requestType']>('ALL');
+  const [revokeTarget, setRevokeTarget] = useState<AttendanceRegularizationRequest | null>(null);
+  const [revokeReason, setRevokeReason] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Reject modal state
@@ -55,59 +58,64 @@ export const Approvals: React.FC = () => {
     }
   };
 
+  const dataVersion = useDataVersion();
   useEffect(() => {
     loadData();
-  }, []);
+  }, [dataVersion]);
 
-  const handleApprove = async (req: AttendanceRegularizationRequest) => {
+  const run = async (work: () => Promise<unknown>, okMessage: string) => {
     setIsProcessing(true);
     setActionError(null);
     try {
-      const reviewerName = user?.name || (user?.role === 'FOUNDER' ? 'Founder' : 'Super Admin');
-      await api.updateRequestStatus(req.id, 'APPROVED', undefined, reviewerName);
-      setActionSuccess(`Request for ${req.empName} (${req.empCode}) approved & synchronized successfully!`);
+      await work();
+      setActionSuccess(okMessage);
       setTimeout(() => setActionSuccess(null), 4000);
-      loadData();
-    } catch (err: any) {
-      setActionError(err.response?.data?.error || err.message || 'Failed to approve request');
-      setTimeout(() => setActionError(null), 5000);
+      await loadData();
+    } catch (err) {
+      setActionError(errorMessage(err, 'The action could not be completed.'));
+      setTimeout(() => setActionError(null), 7000);
+      await loadData();
     } finally {
       setIsProcessing(false);
     }
   };
 
+  const handleApprove = (req: AttendanceRegularizationRequest) =>
+    run(() => api.approveRequest(req.id), `Request for ${req.empName} (${req.empCode}) approved and applied to attendance.`);
+
+  const handleRetryApply = (req: AttendanceRegularizationRequest) =>
+    run(() => api.retryApplyRequest(req.id), `Request for ${req.empName} applied to attendance.`);
+
   const handleRejectSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!rejectTarget) return;
+    const target = rejectTarget;
+    const comment = rejectComment.trim() || undefined;
+    setRejectTarget(null);
+    setRejectComment('');
+    await run(() => api.rejectRequest(target.id, comment), `Request for ${target.empName} has been rejected.`);
+  };
 
-    setIsProcessing(true);
-    setActionError(null);
-    try {
-      const reviewerName = user?.name || (user?.role === 'FOUNDER' ? 'Founder' : 'Super Admin');
-      await api.updateRequestStatus(rejectTarget.id, 'REJECTED', rejectComment.trim() || undefined, reviewerName);
-      setActionSuccess(`Request for ${rejectTarget.empName} has been rejected.`);
-      setTimeout(() => setActionSuccess(null), 4000);
-      setRejectTarget(null);
-      setRejectComment('');
-      loadData();
-    } catch (err: any) {
-      setActionError(err.response?.data?.error || err.message || 'Failed to reject request');
-      setTimeout(() => setActionError(null), 5000);
-    } finally {
-      setIsProcessing(false);
-    }
+  const handleRevokeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!revokeTarget) return;
+    const target = revokeTarget;
+    const reason = revokeReason.trim();
+    setRevokeTarget(null);
+    setRevokeReason('');
+    await run(() => api.revokeRequest(target.id, reason), `Request for ${target.empName} revoked; attendance recalculated.`);
   };
 
   // Metrics
   const pendingCount = requests.filter(r => r.status === 'PENDING').length;
   const pendingLeaves = requests.filter(r => r.status === 'PENDING' && r.requestType === 'LEAVE').length;
   const pendingPunches = requests.filter(r => r.status === 'PENDING' && r.requestType === 'MISSED_PUNCH').length;
-  const approvedCount = requests.filter(r => r.status === 'APPROVED').length;
+  const approvedCount = requests.filter(r => r.status === 'APPROVED' || r.status === 'APPLIED').length;
   const rejectedCount = requests.filter(r => r.status === 'REJECTED').length;
 
   // Filtered requests list
   const filteredRequests = requests.filter(r => {
-    const matchesStatus = statusTab === 'ALL' || r.status === statusTab;
+    const matchesStatus = statusTab === 'ALL' || (statusTab === 'APPROVED' ? r.status === 'APPROVED' || r.status === 'APPLIED' : r.status === statusTab);
     const matchesType = typeFilter === 'ALL' || r.requestType === typeFilter;
     const query = searchQuery.toLowerCase().trim();
     const matchesSearch = !query || 
@@ -328,6 +336,8 @@ export const Approvals: React.FC = () => {
             <option value="ALL">All Request Types</option>
             <option value="LEAVE">Leave Applications</option>
             <option value="MISSED_PUNCH">Missed Punch Swipes</option>
+            <option value="WORK_FROM_HOME">Work From Home</option>
+            <option value="ON_DUTY">On Duty</option>
           </select>
 
           <div className="relative">
@@ -366,7 +376,12 @@ export const Approvals: React.FC = () => {
               ? 'Sick Leave (SL)' 
               : req.leaveType === 'EARNED_LEAVE' 
               ? 'Earned Leave (EL)' 
+              : req.leaveType === 'COMP_OFF'
+              ? 'Comp Off'
+              : req.leaveType === 'UNPAID_LEAVE'
+              ? 'Unpaid Leave (LWP)'
               : 'Leave';
+            const typeLabel = isLeave ? leaveLabel : req.requestType === 'MISSED_PUNCH' ? 'Missed Swipe Regularization' : req.requestType === 'WORK_FROM_HOME' ? 'Work From Home' : 'On Duty';
 
             return (
               <div 
@@ -384,7 +399,7 @@ export const Approvals: React.FC = () => {
                         ID: {req.empCode}
                       </span>
                       <span className="text-[10px] font-medium text-slate-500">
-                        • {empProfile?.department || 'Operations'}
+                        • {empProfile?.department || ''}
                       </span>
                     </div>
 
@@ -395,12 +410,12 @@ export const Approvals: React.FC = () => {
                           ? 'bg-purple-50 text-purple-700 border-purple-200'
                           : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                       }`}>
-                        {isLeave ? leaveLabel : 'Missed Swipe Regularization'}
+                        {typeLabel}{req.halfDay ? ' (half day)' : ''}
                       </span>
 
                       <span className="text-xs font-bold text-slate-700 flex items-center gap-1">
                         <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                        {req.date}
+                        {formatBusinessDate(req.date)}{req.endDate ? ` to ${formatBusinessDate(req.endDate)}` : ''}{req.days !== undefined ? ` (${req.days} day${req.days === 1 ? '' : 's'})` : ''}
                       </span>
 
                       {!isLeave && (req.inTime || req.outTime) && (
@@ -415,6 +430,12 @@ export const Approvals: React.FC = () => {
                       <span>{req.reason}</span>
                     </div>
 
+                    {req.applyError && (
+                      <div className="mt-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">Could not apply: {req.applyError}</div>
+                    )}
+                    {req.revokedBy && (
+                      <div className="mt-2 text-[10px] text-slate-400">Revoked by <strong className="text-slate-600">{req.revokedBy}</strong>{req.revokeReason ? `: ${req.revokeReason}` : ''}</div>
+                    )}
                     {req.reviewedBy && (
                       <div className="mt-2 text-[10px] text-slate-400 flex items-center gap-2">
                         <span>Reviewed by: <strong className="text-slate-600">{req.reviewedBy}</strong></span>
@@ -449,15 +470,25 @@ export const Approvals: React.FC = () => {
                         <span>Reject</span>
                       </button>
                     </>
-                  ) : req.status === 'APPROVED' ? (
-                    <span className="py-1.5 px-3.5 rounded-xl bg-emerald-100 text-emerald-800 font-bold text-xs border border-emerald-200 flex items-center gap-1.5">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Approved</span>
-                    </span>
+                  ) : req.status === 'APPLIED' || req.status === 'APPROVED' ? (
+                    <>
+                      <span className={`py-1.5 px-3.5 rounded-xl font-bold text-xs border flex items-center gap-1.5 ${req.status === 'APPLIED' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-amber-100 text-amber-800 border-amber-200'}`}>
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>{req.status === 'APPLIED' ? 'Approved & applied' : 'Approved, not yet applied'}</span>
+                      </span>
+                      {req.status === 'APPROVED' && (
+                        <button type="button" disabled={isProcessing} onClick={() => handleRetryApply(req)} className="py-2 px-3.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl text-xs font-bold transition cursor-pointer">
+                          Retry apply
+                        </button>
+                      )}
+                      <button type="button" disabled={isProcessing} onClick={() => setRevokeTarget(req)} className="py-2 px-3.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition cursor-pointer">
+                        Revoke
+                      </button>
+                    </>
                   ) : (
                     <span className="py-1.5 px-3.5 rounded-xl bg-rose-100 text-rose-800 font-bold text-xs border border-rose-200 flex items-center gap-1.5">
                       <XCircle className="w-3.5 h-3.5 text-rose-600" />
-                      <span>Rejected</span>
+                      <span>{req.status === 'REJECTED' ? 'Rejected' : req.status === 'CANCELLED' ? 'Cancelled' : 'Revoked'}</span>
                     </span>
                   )}
                 </div>
@@ -466,6 +497,29 @@ export const Approvals: React.FC = () => {
           })
         )}
       </div>
+
+      {/* Revoke Modal */}
+      {revokeTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <h3 className="font-heading font-bold text-slate-900 text-base">Revoke approved request</h3>
+            <p className="text-xs text-slate-600">
+              This removes the attendance effect for <strong>{revokeTarget.empName}</strong> ({formatBusinessDate(revokeTarget.date)}) and restores any leave balance. The days are recalculated by the server.
+            </p>
+            <form onSubmit={handleRevokeSubmit} className="space-y-3.5">
+              <textarea
+                required minLength={5} rows={3} value={revokeReason} onChange={(e) => setRevokeReason(e.target.value)}
+                placeholder="Reason (required, at least 5 characters)"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 outline-none focus:ring-2 focus:ring-rose-500/20 resize-none"
+              />
+              <div className="flex items-center justify-end gap-2">
+                <button type="button" onClick={() => { setRevokeTarget(null); setRevokeReason(''); }} className="py-2 px-4 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50">Cancel</button>
+                <button type="submit" disabled={isProcessing || revokeReason.trim().length < 5} className="py-2 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold disabled:opacity-50">Revoke request</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Reject Modal */}
       {rejectTarget && (
@@ -486,7 +540,7 @@ export const Approvals: React.FC = () => {
             </div>
 
             <p className="text-xs text-slate-600">
-              Are you sure you want to reject the <strong>{rejectTarget.requestType.toLowerCase()}</strong> request for <strong>{rejectTarget.empName}</strong> on <strong>{rejectTarget.date}</strong>?
+              Are you sure you want to reject the <strong>{rejectTarget.requestType.toLowerCase()}</strong> request for <strong>{rejectTarget.empName}</strong> on <strong>{formatBusinessDate(rejectTarget.date)}</strong>?
             </p>
 
             <form onSubmit={handleRejectSubmit} className="space-y-3.5">

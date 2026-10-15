@@ -13,6 +13,8 @@ import {
 import { api } from '../../services/api';
 import { AttendanceSource } from '../../types';
 import { humanizeSyncError } from '../../lib/utils';
+import { istMonth, istToday } from '../../lib/businessDate';
+import { errorMessage } from '../../lib/apiError';
 
 interface SyncModalProps {
   isOpen: boolean;
@@ -31,6 +33,7 @@ interface LocationProgress {
   sourceName: string;
   status: LocationStatus;
   count?: number;
+  note?: string;
   error?: string;
 }
 
@@ -44,11 +47,8 @@ export const SyncModal: React.FC<SyncModalProps> = ({
   const [selectedLocation, setSelectedLocation] = useState<string>(activeSourceId || 'office');
   const [syncScope, setSyncScope] = useState<'single' | 'all'>('all');
   const [apiMode, setApiMode] = useState<ApiMode>('inout');
-  const [fromDate, setFromDate] = useState<string>(() => {
-    const d = new Date();
-    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
-  });
-  const [toDate, setToDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [fromDate, setFromDate] = useState<string>(() => `${istMonth()}-01`);
+  const [toDate, setToDate] = useState<string>(() => istToday());
   const [empCode, setEmpCode] = useState<string>('ALL');
 
   const [phase, setPhase] = useState<Phase>('idle');
@@ -83,20 +83,10 @@ export const SyncModal: React.FC<SyncModalProps> = ({
             ? await api.syncInOutSource(target.id, payload)
             : await api.syncSource(target.id, payload);
 
-        const count = res.count ?? res.inserted ?? 0;
-
-        if (res.success === false) {
-          updateProgress(target.id, {
-            status: 'error',
-            error: res.error || 'Sync failed for an unknown reason.',
-          });
-        } else {
-          updateProgress(target.id, { status: 'success', count });
-        }
-      } catch (err: any) {
-        const msg =
-          err.response?.data?.error || err.message || 'Failed to sync attendance records.';
-        updateProgress(target.id, { status: 'error', error: msg });
+        // Same result shape for raw and IN/OUT; failures arrive as real HTTP errors (caught below).
+        updateProgress(target.id, { status: 'success', count: apiMode === 'inout' ? res.fetched : res.inserted, note: res.note });
+      } catch (err) {
+        updateProgress(target.id, { status: 'error', error: errorMessage(err, 'Failed to sync attendance records.') });
       }
     }
 
@@ -405,6 +395,9 @@ export const SyncModal: React.FC<SyncModalProps> = ({
                           </span>
                         )}
                       </div>
+                      {p.status === 'success' && p.note && (
+                        <p className="text-[11px] font-sans mt-0.5 text-amber-700">{p.note}</p>
+                      )}
                       <p className="text-[11px] font-sans mt-0.5 leading-relaxed">
                         {p.status === 'pending' && 'Waiting…'}
                         {p.status === 'running' && `Talking to ${p.sourceName}'s biometric system…`}

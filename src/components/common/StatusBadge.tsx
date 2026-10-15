@@ -3,7 +3,7 @@ import { cn } from '../../lib/utils';
 import { CheckCircle2, AlertTriangle, XCircle, RefreshCw, Radio } from 'lucide-react';
 
 interface StatusBadgeProps {
-  status: 'connected' | 'success' | 'failed' | 'running' | 'partial' | 'credentials_missing' | 'ready' | string;
+  status: 'connected' | 'success' | 'failed' | 'running' | 'partial' | 'degraded' | 'never_synced' | 'disabled' | 'credentials_missing' | 'ready' | string;
   size?: 'sm' | 'md' | 'lg';
   showIcon?: boolean;
   className?: string;
@@ -29,10 +29,14 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
     bgClass = 'bg-sky-50 text-brand-700 border border-sky-200 font-bold';
     icon = <RefreshCw className="w-3 h-3 text-brand-600 animate-spin" />;
     label = 'Syncing...';
-  } else if (normStatus === 'partial') {
+  } else if (normStatus === 'partial' || normStatus === 'degraded') {
     bgClass = 'bg-amber-50 text-amber-700 border border-amber-200 font-bold';
     icon = <AlertTriangle className="w-3 h-3 text-amber-600" />;
-    label = 'Partial';
+    label = normStatus === 'degraded' ? 'Degraded' : 'Partial';
+  } else if (normStatus === 'never_synced') {
+    label = 'Never synced';
+  } else if (normStatus === 'disabled') {
+    label = 'Disabled';
   } else if (normStatus === 'failed' || normStatus === 'error') {
     bgClass = 'bg-rose-50 text-rose-700 border border-rose-200 font-bold';
     icon = <XCircle className="w-3 h-3 text-rose-600" />;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { InOutSummary } from '../../types';
+import { AttendanceSummary } from '../../types';
 import { 
   Clock, 
   CheckCircle2, 
@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 
 interface AttendanceSummaryMetricsProps {
-  summary: InOutSummary | undefined;
+  summary: AttendanceSummary | undefined;
   isLoading?: boolean;
 }
 
@@ -40,9 +40,9 @@ export const AttendanceSummaryMetrics: React.FC<AttendanceSummaryMetricsProps> =
       borderHover: 'hover:border-emerald-500',
     },
     {
-      label: 'Absent Recorded',
+      label: 'Absent / Unpaid',
       value: summary.absentCount.toLocaleString(),
-      subtext: `${summary.halfDayCount} Half-day entries`,
+      subtext: `${summary.halfDayCount} half-day, ${summary.leaveCount} on paid leave`,
       icon: XCircle,
       accent: 'bg-rose-100 text-rose-600',
       glow: 'from-rose-400/10 to-red-500/20',
@@ -51,7 +51,7 @@ export const AttendanceSummaryMetrics: React.FC<AttendanceSummaryMetricsProps> =
     {
       label: 'Avg Daily Working Hours',
       value: avgHours,
-      subtext: 'Calculated from In/Out punches',
+      subtext: `${summary.missedPunchCount} missed punch${summary.missedPunchCount === 1 ? '' : 'es'}`,
       icon: Clock,
       accent: 'bg-sky-100 text-brand-500',
       glow: 'from-sky-400/10 to-brand-500/20',
@@ -60,7 +60,7 @@ export const AttendanceSummaryMetrics: React.FC<AttendanceSummaryMetricsProps> =
     {
       label: 'Late Arrivals',
       value: summary.lateArrivalsCount.toLocaleString(),
-      subtext: 'Late check-ins this period',
+      subtext: 'First punch after shift start + grace',
       icon: Timer,
       accent: 'bg-amber-100 text-amber-600',
       glow: 'from-amber-400/10 to-orange-500/20',

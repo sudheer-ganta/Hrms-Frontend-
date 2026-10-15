@@ -6,6 +6,9 @@ import {
   Download, 
   X
 } from 'lucide-react';
+import { addDays, istToday } from '../../lib/businessDate';
+import { ATTENDANCE_STATUSES } from '../../types';
+import { STATUS_META } from '../../lib/attendanceDisplay';
 
 interface InOutFilterBarProps {
   fromDate: string;
@@ -37,28 +40,21 @@ export const InOutFilterBar: React.FC<InOutFilterBarProps> = ({
   isRefreshing,
 }) => {
   const setQuickRange = (type: 'today' | 'yesterday' | 'week' | 'month') => {
-    const today = new Date();
-    const formatDate = (d: Date) => d.toISOString().split('T')[0];
-
+    // IST business dates (never the browser's local or UTC date).
+    const today = istToday();
     if (type === 'today') {
-      const t = formatDate(today);
-      onFromDateChange(t);
-      onToDateChange(t);
+      onFromDateChange(today);
+      onToDateChange(today);
     } else if (type === 'yesterday') {
-      const y = new Date(today);
-      y.setDate(y.getDate() - 1);
-      const str = formatDate(y);
-      onFromDateChange(str);
-      onToDateChange(str);
+      const y = addDays(today, -1);
+      onFromDateChange(y);
+      onToDateChange(y);
     } else if (type === 'week') {
-      const past7 = new Date(today);
-      past7.setDate(past7.getDate() - 7);
-      onFromDateChange(formatDate(past7));
-      onToDateChange(formatDate(today));
+      onFromDateChange(addDays(today, -7));
+      onToDateChange(today);
     } else if (type === 'month') {
-      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-      onFromDateChange(formatDate(firstDay));
-      onToDateChange(formatDate(today));
+      onFromDateChange(`${today.slice(0, 7)}-01`);
+      onToDateChange(today);
     }
   };
 
@@ -187,10 +183,9 @@ export const InOutFilterBar: React.FC<InOutFilterBarProps> = ({
             className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-800 font-semibold focus:outline-none focus:border-brand-500"
           >
             <option value="all">All Statuses</option>
-            <option value="P">Present (P)</option>
-            <option value="A">Absent (A)</option>
-            <option value="P/2">Half Day (P/2)</option>
-            <option value="W">Weekly Off (W)</option>
+            {ATTENDANCE_STATUSES.map((st) => (
+              <option key={st} value={st}>{STATUS_META[st].label}</option>
+            ))}
           </select>
         </div>
       </div>

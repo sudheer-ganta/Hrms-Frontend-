@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { X, Save, User, Mail, Phone, Calendar, Briefcase, CreditCard, Clock, FileSpreadsheet, Building2 } from 'lucide-react';
-import { EmployeeProfile } from '../../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { X, Save, User, Briefcase, CreditCard, Clock, FileSpreadsheet } from 'lucide-react';
+import { EmployeeProfile, EmployeeProfileInput, SalaryBreakdown, Site } from '../../types';
 import { api } from '../../services/api';
+import { errorMessage } from '../../lib/apiError';
+import { inr } from '../../lib/utils';
 
 interface EditEmployeeModalProps {
   isOpen: boolean;
@@ -10,574 +12,264 @@ interface EditEmployeeModalProps {
   onSaved: (updated: EmployeeProfile) => void;
 }
 
-export const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({
-  isOpen,
-  onClose,
-  empCode,
-  onSaved,
-}) => {
+type SalaryKey = 'basicSalary' | 'da' | 'hra' | 'otherAllowance' | 'specialAllowance' | 'employeePf' | 'employerPf' | 'employeeEsic' | 'employerEsic' | 'professionalTax' | 'minimumBonus';
+const SALARY_LABELS: Record<SalaryKey, string> = {
+  basicSalary: 'Basic (A)', da: 'Dearness Allowance', hra: 'HRA (C1)', otherAllowance: 'Other Allowance', specialAllowance: 'Special Allowance (C2)',
+  employeePf: 'Employee PF (E)', employerPf: 'Employer PF (H)', employeeEsic: 'Employee ESIC (F)', employerEsic: 'Employer ESIC (I)',
+  professionalTax: 'Professional Tax (J)', minimumBonus: 'Minimum Bonus (K)',
+};
+const SALARY_KEYS = Object.keys(SALARY_LABELS) as SalaryKey[];
+
+const buildSalaryInputs = (ctc: string, overrides: Partial<Record<SalaryKey, string>>): EmployeeProfileInput => {
+  const out: EmployeeProfileInput = {};
+  const n = Number(ctc);
+  if (ctc.trim() !== '' && Number.isFinite(n)) out.monthlyCtc = n;
+  for (const k of SALARY_KEYS) {
+    const v = overrides[k];
+    if (v !== undefined && v.trim() !== '' && Number.isFinite(Number(v))) out[k] = Number(v);
+  }
+  return out;
+};
+
+const cls = 'w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#1184b0] focus:outline-none bg-white';
+
+/**
+ * The salary breakdown is NOT computed here. The form sends salary INPUTS (CTC and any explicit
+ * overrides) to the backend preview endpoint, which applies the single salary formula and returns every
+ * component. This modal only displays that result.
+ */
+export const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ isOpen, onClose, empCode, onSaved }) => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [formData, setFormData] = useState<Partial<EmployeeProfile>>({
-    name: '',
-    email: '',
-    phone: '',
-    dob: '',
-    doj: '',
-    department: '',
-    designation: '',
-    operationsCategory: '',
-    monthlyCtc: undefined,
-    basicSalary: undefined,
-    da: undefined,
-    fixedSalary: undefined,
-    hra: undefined,
-    specialAllowance: undefined,
-    otherAllowance: undefined,
-    grossSalary: undefined,
-    employeePf: undefined,
-    employeeEsic: undefined,
-    totalNetSalary: undefined,
-    employerPf: undefined,
-    employerEsic: undefined,
-    professionalTax: undefined,
-    minimumBonus: undefined,
-    otEligible: true,
-    otRatePerHour: 0,
-    bankAccount: '',
-    ifscCode: '',
-    bankName: '',
-    panNumber: '',
-  });
+  const [error, setError] = useState<string | null>(null);
+  const [sites, setSites] = useState<Site[]>([]);
+  const [form, setForm] = useState<Partial<EmployeeProfile>>({});
+  const [ctc, setCtc] = useState<string>('');
+  const [overrides, setOverrides] = useState<Partial<Record<SalaryKey, string>>>({});
+  const [preview, setPreview] = useState<SalaryBreakdown | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [initialSalaryKey, setInitialSalaryKey] = useState<string>('');
 
   useEffect(() => {
     if (!isOpen || !empCode) return;
-
-    let isMounted = true;
+    let alive = true;
     setLoading(true);
-
-    api.getEmployeeProfile(empCode)
-      .then((profile) => {
-        if (isMounted && profile) {
-          setFormData({
-            ...profile,
-          });
+    setError(null);
+    Promise.all([api.getEmployeeProfile(empCode), api.getSites().catch(() => [] as Site[])])
+      .then(async ([p, s]) => {
+        if (!alive) return;
+        setSites(s);
+        setForm(p);
+        setCtc(p.monthlyCtc ? String(p.monthlyCtc) : '');
+        // Pre-fill an override only where the stored value differs from what the formula gives for this CTC.
+        const next: Partial<Record<SalaryKey, string>> = {};
+        if (p.monthlyCtc) {
+          const base = await api.previewSalary({ monthlyCtc: p.monthlyCtc }).catch(() => null);
+          if (base) for (const k of SALARY_KEYS) if (p[k] !== undefined && p[k] !== null && p[k] !== base[k]) next[k] = String(p[k]);
+        }
+        if (alive) {
+          setOverrides(next);
+          setInitialSalaryKey(JSON.stringify(buildSalaryInputs(p.monthlyCtc ? String(p.monthlyCtc) : '', next)));
         }
       })
-      .catch((err) => console.warn('Could not fetch profile:', err))
-      .finally(() => {
-        if (isMounted) setLoading(false);
-      });
-
-    return () => {
-      isMounted = false;
-    };
+      .catch((e) => alive && setError(errorMessage(e, 'Could not load the employee.')))
+      .finally(() => alive && setLoading(false));
+    return () => { alive = false; };
   }, [isOpen, empCode]);
+
+  const salaryInputs = useMemo(() => buildSalaryInputs(ctc, overrides), [ctc, overrides]);
+
+  // Live preview straight from the backend formula (debounced).
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!salaryInputs.monthlyCtc || salaryInputs.monthlyCtc <= 0) { setPreview(null); setPreviewError(null); return; }
+    let alive = true;
+    const t = setTimeout(() => {
+      api.previewSalary(salaryInputs)
+        .then((b) => { if (alive) { setPreview(b); setPreviewError(null); } })
+        .catch((e) => { if (alive) { setPreview(null); setPreviewError(errorMessage(e)); } });
+    }, 350);
+    return () => { alive = false; clearTimeout(t); };
+  }, [salaryInputs, isOpen]);
 
   if (!isOpen) return null;
 
-  // Real-time calculation helpers
-  const basic = formData.basicSalary ?? 0;
-  const fixed = formData.fixedSalary ?? basic;
-  const hra = formData.hra ?? 0;
-  const specialAllowance = formData.specialAllowance ?? 0;
-  const da = formData.da ?? 0;
-  const otherAllowance = formData.otherAllowance ?? 0;
-  const gross = formData.grossSalary ?? (basic + da + hra + specialAllowance + otherAllowance);
-
-  const empPf = formData.employeePf ?? 0;
-  const empEsic = formData.employeeEsic ?? 0;
-  const netSalary = formData.totalNetSalary ?? Math.max(0, gross - empPf - empEsic);
-
-  const emplrPf = formData.employerPf ?? 0;
-  const emplrEsic = formData.employerEsic ?? 0;
-  const pt = formData.professionalTax ?? 0;
-  const bonus = formData.minimumBonus ?? 0;
-  const calculatedCtc = formData.monthlyCtc ?? (gross + emplrPf + emplrEsic + pt + bonus);
-
-  const handleFieldChange = (field: keyof EmployeeProfile, value: any) => {
-    const numVal = value === '' || value === undefined ? undefined : Number(value);
-    setFormData((prev) => {
-      const updated = { ...prev, [field]: numVal };
-
-      // Auto update gross and net if basic/DA/hra/special are edited (Gross = Basic + DA + HRA + Special + Others)
-      const b = field === 'basicSalary' ? (numVal ?? 0) : (prev.basicSalary ?? 0);
-      const h = field === 'hra' ? (numVal ?? 0) : (prev.hra ?? 0);
-      const s = field === 'specialAllowance' ? (numVal ?? 0) : (prev.specialAllowance ?? 0);
-      const d = field === 'da' ? (numVal ?? 0) : (prev.da ?? 0);
-      const o = field === 'otherAllowance' ? (numVal ?? 0) : (prev.otherAllowance ?? 0);
-      const g = b + d + h + s + o;
-
-      const epf = field === 'employeePf' ? (numVal ?? 0) : (prev.employeePf ?? 0);
-      const eesic = field === 'employeeEsic' ? (numVal ?? 0) : (prev.employeeEsic ?? 0);
-      const net = Math.max(0, g - epf - eesic);
-
-      const emPf = field === 'employerPf' ? (numVal ?? 0) : (prev.employerPf ?? 0);
-      const emEsic = field === 'employerEsic' ? (numVal ?? 0) : (prev.employerEsic ?? 0);
-      const ptax = field === 'professionalTax' ? (numVal ?? 0) : (prev.professionalTax ?? 0);
-      const bon = field === 'minimumBonus' ? (numVal ?? 0) : (prev.minimumBonus ?? 0);
-      const ctc = g + emPf + emEsic + ptax + bon;
-
-      return {
-        ...updated,
-        grossSalary: g > 0 ? g : undefined,
-        totalNetSalary: net > 0 ? net : undefined,
-        monthlyCtc: ctc > 0 ? ctc : undefined,
-        annualCtc: ctc > 0 ? ctc * 12 : undefined,
-      };
-    });
-  };
+  const set = <K extends keyof EmployeeProfile>(key: K, value: EmployeeProfile[K]) => setForm((f) => ({ ...f, [key]: value }));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    setError(null);
     try {
-      const updated = await api.updateEmployeeProfile(empCode, formData);
+      const payload: EmployeeProfileInput = {
+        name: form.name, email: form.email ?? '', phone: form.phone ?? '', dob: form.dob ?? '', doj: form.doj ?? '',
+        gender: form.gender, bloodGroup: form.bloodGroup, emergencyContact: form.emergencyContact,
+        department: form.department, designation: form.designation, location: form.location ?? '',
+        operationsCategory: form.operationsCategory, managerEmpCode: form.managerEmpCode ?? '', managerName: form.managerName,
+        status: form.status, otEligible: form.otEligible, otMultiplier: form.otMultiplier, otRatePerHour: form.otRatePerHour, notes: form.notes,
+        bankName: form.bankName, bankAccount: form.bankAccount, ifscCode: form.ifscCode, panNumber: form.panNumber,
+        aadhaarNumber: form.aadhaarNumber, uanNumber: form.uanNumber,
+      };
+      // Only send salary inputs when the user actually changed them.
+      if (JSON.stringify(salaryInputs) !== initialSalaryKey) Object.assign(payload, salaryInputs);
+      const updated = await api.updateEmployeeProfile(empCode, payload);
       onSaved(updated);
       onClose();
-    } catch (err: any) {
-      alert(`Failed to save profile: ${err?.response?.data?.error || err.message}`);
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to save profile'));
     } finally {
       setSaving(false);
     }
   };
 
+  const text = (label: string, key: keyof EmployeeProfile, type = 'text', extra = '') => (
+    <div className={extra}>
+      <label className="block text-xs font-medium text-slate-700 mb-1">{label}</label>
+      <input type={type} value={(form[key] as string | number | undefined) ?? ''} onChange={(e) => set(key, e.target.value as never)} className={cls} />
+    </div>
+  );
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
       <div className="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
-        {/* Clean Header */}
         <div className="px-6 py-4 bg-[#011638] text-white flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-white font-bold border border-white/20">
-              {empCode.slice(-3)}
-            </div>
+            <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-white font-bold border border-white/20">{empCode.slice(-3)}</div>
             <div>
-              <h3 className="font-heading font-bold text-base leading-tight">
-                Employee Profile & Salary Breakup (Annexure K)
-              </h3>
-              <p className="text-xs text-slate-300">
-                Emp ID: <span className="font-mono font-bold text-white">{empCode}</span> • {formData.name || 'Staff Member'}
-              </p>
+              <h3 className="font-heading font-bold text-base leading-tight">Employee Profile & Salary Breakup (Annexure K)</h3>
+              <p className="text-xs text-slate-300">Emp ID: <span className="font-mono font-bold text-white">{empCode}</span> • {form.name || 'Staff Member'}</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <button onClick={onClose} className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition"><X className="w-5 h-5" /></button>
         </div>
 
-        {/* Content Form */}
         {loading ? (
           <div className="p-12 text-center text-slate-500">Loading employee details...</div>
         ) : (
           <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-6">
-            {/* 1. Personal & Contact Information */}
+            {error && <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold">{error}</div>}
+
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5 text-[#1184b0]" /> Personal & Official Information
-              </h4>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5"><User className="w-3.5 h-3.5 text-[#1184b0]" /> Personal</h4>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Full Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.name || ''}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#1184b0] focus:outline-none bg-white"
-                    placeholder="e.g. Ganta Mohan Sai Sudheer"
-                  />
-                </div>
-
+                {text('Full Name', 'name', 'text', 'md:col-span-2')}
+                {text('Date of Birth', 'dob', 'date')}
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">DOB (Date of Birth)</label>
-                  <input
-                    type="date"
-                    value={formData.dob || ''}
-                    onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
-                    className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#1184b0] focus:outline-none bg-white text-slate-700"
-                  />
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Gender</label>
+                  <select value={form.gender ?? ''} onChange={(e) => set('gender', (e.target.value || undefined) as EmployeeProfile['gender'])} className={cls}>
+                    <option value="">—</option><option>Male</option><option>Female</option><option>Other</option>
+                  </select>
                 </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">DOJ (Date of Joining)</label>
-                  <input
-                    type="date"
-                    value={formData.doj || ''}
-                    onChange={(e) => setFormData({ ...formData, doj: e.target.value })}
-                    className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#1184b0] focus:outline-none bg-white text-slate-700"
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Official Email (For Payslips)</label>
-                  <input
-                    type="email"
-                    value={formData.email || ''}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#1184b0] focus:outline-none bg-white"
-                    placeholder="e.g. employee@colormyles.com"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Phone Number</label>
-                  <input
-                    type="tel"
-                    value={formData.phone || ''}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#1184b0] focus:outline-none bg-white"
-                    placeholder="+91 98765 43210"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Operations Category</label>
-                  <input
-                    type="text"
-                    value={formData.operationsCategory || ''}
-                    onChange={(e) => setFormData({ ...formData, operationsCategory: e.target.value })}
-                    className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#1184b0] focus:outline-none bg-white"
-                    placeholder="Office Staff (3)"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Department</label>
-                  <input
-                    type="text"
-                    value={formData.department || ''}
-                    onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                    className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#1184b0] focus:outline-none bg-white"
-                    placeholder="Digital Marketing / Operations"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Designation</label>
-                  <input
-                    type="text"
-                    value={formData.designation || ''}
-                    onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
-                    className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#1184b0] focus:outline-none bg-white"
-                    placeholder="Full Stack Developer"
-                  />
-                </div>
+                {text('Email', 'email', 'email', 'md:col-span-2')}
+                {text('Phone', 'phone', 'tel')}
+                {text('Emergency Contact', 'emergencyContact')}
               </div>
             </div>
 
-            {/* 2. ANNEXURE K: Clean Light Salary Table */}
-            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
-              <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5"><Briefcase className="w-3.5 h-3.5 text-[#1184b0]" /> Employment</h4>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                {text('Department', 'department')}
+                {text('Designation', 'designation')}
+                {text('Date of Joining', 'doj', 'date')}
                 <div>
-                  <h4 className="font-heading font-bold text-xs text-slate-900 flex items-center gap-1.5">
-                    <FileSpreadsheet className="w-4 h-4 text-[#1184b0]" /> Annexure K — Breakup of CTC
-                  </h4>
-                  <p className="text-[11px] text-slate-500">
-                    Enter Monthly (PM) values. Annual (PA) amounts auto-compute.
-                  </p>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Work Location</label>
+                  <select value={form.location ?? ''} onChange={(e) => set('location', e.target.value || undefined)} className={cls}>
+                    <option value="">—</option>
+                    {sites.map((s) => (<option key={s.siteId} value={s.siteId}>{s.displayName}</option>))}
+                  </select>
                 </div>
-              </div>
-
-              {/* Matrix Table */}
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-slate-100 text-slate-600 uppercase text-[10px] tracking-wider border-b border-slate-200 font-bold">
-                      <th className="py-2.5 px-4">PARTICULARS</th>
-                      <th className="py-2.5 px-4 text-right w-44">Salary PA (Rs.)</th>
-                      <th className="py-2.5 px-4 text-right w-44">Salary PM (Rs.)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-slate-800 font-medium">
-                    {/* Basic (A) */}
-                    <tr className="hover:bg-slate-50/80">
-                      <td className="py-2 px-4">Basic (A)</td>
-                      <td className="py-2 px-4 text-right font-mono text-slate-500">
-                        {basic > 0 ? (basic * 12).toLocaleString('en-IN') : '—'}
-                      </td>
-                      <td className="py-2 px-4 text-right">
-                        <input
-                          type="number"
-                          value={formData.basicSalary ?? ''}
-                          onChange={(e) => handleFieldChange('basicSalary', e.target.value)}
-                          placeholder="0"
-                          className="w-32 text-right bg-white border border-slate-300 rounded px-2.5 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#1184b0]"
-                        />
-                      </td>
-                    </tr>
-
-                    {/* DA — part of Gross (Basic + DA + HRA + Special) and of the OT wage base (Basic + DA) */}
-                    <tr className="hover:bg-slate-50/80">
-                      <td className="py-2 px-4">DA (Dearness Allowance)</td>
-                      <td className="py-2 px-4 text-right font-mono text-slate-500">
-                        {(formData.da ?? 0) > 0 ? ((formData.da ?? 0) * 12).toLocaleString('en-IN') : '—'}
-                      </td>
-                      <td className="py-2 px-4 text-right">
-                        <input
-                          type="number"
-                          value={formData.da ?? ''}
-                          onChange={(e) => handleFieldChange('da', e.target.value)}
-                          placeholder="0"
-                          className="w-32 text-right bg-white border border-slate-300 rounded px-2.5 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#1184b0]"
-                        />
-                      </td>
-                    </tr>
-
-                    {/* Fixed Salary (B) */}
-                    <tr className="hover:bg-slate-50/80">
-                      <td className="py-2 px-4">Fixed Salary (B)</td>
-                      <td className="py-2 px-4 text-right font-mono text-slate-500">
-                        {fixed > 0 ? (fixed * 12).toLocaleString('en-IN') : '—'}
-                      </td>
-                      <td className="py-2 px-4 text-right">
-                        <input
-                          type="number"
-                          value={formData.fixedSalary ?? ''}
-                          onChange={(e) => handleFieldChange('fixedSalary', e.target.value)}
-                          placeholder="0"
-                          className="w-32 text-right bg-white border border-slate-300 rounded px-2.5 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#1184b0]"
-                        />
-                      </td>
-                    </tr>
-
-                    {/* HRA (C1) */}
-                    <tr className="hover:bg-slate-50/80">
-                      <td className="py-2 px-4">HRA (C1)</td>
-                      <td className="py-2 px-4 text-right font-mono text-slate-500">
-                        {hra > 0 ? (hra * 12).toLocaleString('en-IN') : '—'}
-                      </td>
-                      <td className="py-2 px-4 text-right">
-                        <input
-                          type="number"
-                          value={formData.hra ?? ''}
-                          onChange={(e) => handleFieldChange('hra', e.target.value)}
-                          placeholder="0"
-                          className="w-32 text-right bg-white border border-slate-300 rounded px-2.5 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#1184b0]"
-                        />
-                      </td>
-                    </tr>
-
-                    {/* Special Allowance (C2) */}
-                    <tr className="hover:bg-slate-50/80">
-                      <td className="py-2 px-4">Special Allowance (C2)</td>
-                      <td className="py-2 px-4 text-right font-mono text-slate-500">
-                        {specialAllowance > 0 ? (specialAllowance * 12).toLocaleString('en-IN') : '—'}
-                      </td>
-                      <td className="py-2 px-4 text-right">
-                        <input
-                          type="number"
-                          value={formData.specialAllowance ?? ''}
-                          onChange={(e) => handleFieldChange('specialAllowance', e.target.value)}
-                          placeholder="0"
-                          className="w-32 text-right bg-white border border-slate-300 rounded px-2.5 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#1184b0]"
-                        />
-                      </td>
-                    </tr>
-
-                    {/* Others / Other Allowance — part of Gross */}
-                    <tr className="hover:bg-slate-50/80">
-                      <td className="py-2 px-4">Others / Other Allowance</td>
-                      <td className="py-2 px-4 text-right font-mono text-slate-500">
-                        {otherAllowance > 0 ? (otherAllowance * 12).toLocaleString('en-IN') : '—'}
-                      </td>
-                      <td className="py-2 px-4 text-right">
-                        <input
-                          type="number"
-                          value={formData.otherAllowance ?? ''}
-                          onChange={(e) => handleFieldChange('otherAllowance', e.target.value)}
-                          placeholder="0"
-                          className="w-32 text-right bg-white border border-slate-300 rounded px-2.5 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#1184b0]"
-                        />
-                      </td>
-                    </tr>
-
-                    {/* Gross Salary (D) */}
-                    <tr className="bg-slate-100 font-bold text-slate-900 border-y border-slate-200">
-                      <td className="py-2.5 px-4">Gross Salary (D)</td>
-                      <td className="py-2.5 px-4 text-right font-mono">
-                        {gross > 0 ? `₹${(gross * 12).toLocaleString('en-IN')}` : '—'}
-                      </td>
-                      <td className="py-2.5 px-4 text-right font-mono text-xs font-bold text-slate-900 pr-4">
-                        {gross > 0 ? `₹${gross.toLocaleString('en-IN')}` : '—'}
-                      </td>
-                    </tr>
-
-                    {/* Employee's Contribution to PF (E) */}
-                    <tr className="hover:bg-slate-50/80">
-                      <td className="py-2 px-4 text-slate-700">Employee's Contribution to PF (E)</td>
-                      <td className="py-2 px-4 text-right font-mono text-slate-500">
-                        {empPf > 0 ? (empPf * 12).toLocaleString('en-IN') : '—'}
-                      </td>
-                      <td className="py-2 px-4 text-right">
-                        <input
-                          type="number"
-                          value={formData.employeePf ?? ''}
-                          onChange={(e) => handleFieldChange('employeePf', e.target.value)}
-                          placeholder="0"
-                          className="w-32 text-right bg-white border border-slate-300 rounded px-2.5 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#1184b0]"
-                        />
-                      </td>
-                    </tr>
-
-                    {/* Employee's Contribution to ESIC (F) */}
-                    <tr className="hover:bg-slate-50/80">
-                      <td className="py-2 px-4 text-slate-700">Employee's Contribution to ESIC (F)</td>
-                      <td className="py-2 px-4 text-right font-mono text-slate-500">
-                        {empEsic > 0 ? (empEsic * 12).toLocaleString('en-IN') : '—'}
-                      </td>
-                      <td className="py-2 px-4 text-right">
-                        <input
-                          type="number"
-                          value={formData.employeeEsic ?? ''}
-                          onChange={(e) => handleFieldChange('employeeEsic', e.target.value)}
-                          placeholder="0"
-                          className="w-32 text-right bg-white border border-slate-300 rounded px-2.5 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#1184b0]"
-                        />
-                      </td>
-                    </tr>
-
-                    {/* Total Net Salary (G) */}
-                    <tr className="bg-sky-50 font-bold text-slate-900 border-y-2 border-sky-200">
-                      <td className="py-2.5 px-4 text-slate-900 font-extrabold">Total Net Salary (G)</td>
-                      <td className="py-2.5 px-4 text-right font-mono text-slate-900">
-                        {netSalary > 0 ? `₹${(netSalary * 12).toLocaleString('en-IN')}` : '—'}
-                      </td>
-                      <td className="py-2.5 px-4 text-right font-mono text-sm font-extrabold text-[#1184b0] pr-4">
-                        {netSalary > 0 ? `₹${netSalary.toLocaleString('en-IN')}` : '—'}
-                      </td>
-                    </tr>
-
-                    {/* Employer's Contribution to PF (H) */}
-                    <tr className="hover:bg-slate-50/80">
-                      <td className="py-2 px-4 text-slate-700">Employer's Contribution to PF (H)</td>
-                      <td className="py-2 px-4 text-right font-mono text-slate-500">
-                        {emplrPf > 0 ? (emplrPf * 12).toLocaleString('en-IN') : '—'}
-                      </td>
-                      <td className="py-2 px-4 text-right">
-                        <input
-                          type="number"
-                          value={formData.employerPf ?? ''}
-                          onChange={(e) => handleFieldChange('employerPf', e.target.value)}
-                          placeholder="0"
-                          className="w-32 text-right bg-white border border-slate-300 rounded px-2.5 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#1184b0]"
-                        />
-                      </td>
-                    </tr>
-
-                    {/* Employer's Contribution to ESIC (I) */}
-                    <tr className="hover:bg-slate-50/80">
-                      <td className="py-2 px-4 text-slate-700">Employer's Contribution to ESIC (I)</td>
-                      <td className="py-2 px-4 text-right font-mono text-slate-500">
-                        {emplrEsic > 0 ? (emplrEsic * 12).toLocaleString('en-IN') : '—'}
-                      </td>
-                      <td className="py-2 px-4 text-right">
-                        <input
-                          type="number"
-                          value={formData.employerEsic ?? ''}
-                          onChange={(e) => handleFieldChange('employerEsic', e.target.value)}
-                          placeholder="0"
-                          className="w-32 text-right bg-white border border-slate-300 rounded px-2.5 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#1184b0]"
-                        />
-                      </td>
-                    </tr>
-
-                    {/* PT (J) */}
-                    <tr className="hover:bg-slate-50/80">
-                      <td className="py-2 px-4 text-slate-700">PT (J)</td>
-                      <td className="py-2 px-4 text-right font-mono text-slate-500">
-                        {pt > 0 ? (pt * 12).toLocaleString('en-IN') : '—'}
-                      </td>
-                      <td className="py-2 px-4 text-right">
-                        <input
-                          type="number"
-                          value={formData.professionalTax ?? ''}
-                          onChange={(e) => handleFieldChange('professionalTax', e.target.value)}
-                          placeholder="0"
-                          className="w-32 text-right bg-white border border-slate-300 rounded px-2.5 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#1184b0]"
-                        />
-                      </td>
-                    </tr>
-
-                    {/* Minimum Bonus (K) */}
-                    <tr className="hover:bg-slate-50/80">
-                      <td className="py-2 px-4 text-slate-700">Minimum Bonus (K)</td>
-                      <td className="py-2 px-4 text-right font-mono text-slate-500">
-                        {bonus > 0 ? (bonus * 12).toLocaleString('en-IN') : '—'}
-                      </td>
-                      <td className="py-2 px-4 text-right">
-                        <input
-                          type="number"
-                          value={formData.minimumBonus ?? ''}
-                          onChange={(e) => handleFieldChange('minimumBonus', e.target.value)}
-                          placeholder="0"
-                          className="w-32 text-right bg-white border border-slate-300 rounded px-2.5 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#1184b0]"
-                        />
-                      </td>
-                    </tr>
-
-                    {/* Total Gross CTC (L) */}
-                    <tr className="bg-slate-900 text-white font-bold border-t-2 border-slate-300">
-                      <td className="py-3 px-4 text-white font-extrabold">Total Gross CTC (L)</td>
-                      <td className="py-3 px-4 text-right font-mono text-slate-200">
-                        {calculatedCtc > 0 ? `₹${(calculatedCtc * 12).toLocaleString('en-IN')}` : '—'}
-                      </td>
-                      <td className="py-3 px-4 text-right font-mono text-sm font-extrabold text-white pr-4">
-                        {calculatedCtc > 0 ? `₹${calculatedCtc.toLocaleString('en-IN')}` : '—'}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Status</label>
+                  <select value={form.status ?? 'active'} onChange={(e) => set('status', e.target.value as EmployeeProfile['status'])} className={cls}>
+                    <option value="active">Active</option><option value="inactive">Inactive</option><option value="resigned">Resigned</option>
+                  </select>
+                </div>
+                {text('Manager Emp Code', 'managerEmpCode')}
+                {text('Operations Category', 'operationsCategory', 'text', 'md:col-span-2')}
               </div>
             </div>
 
-            {/* 3. Bank Account Details */}
-            <div className="grid grid-cols-1 gap-4">
-              {/* Bank Details */}
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[11px] font-medium text-slate-700 mb-0.5">Bank A/C</label>
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5"><FileSpreadsheet className="w-3.5 h-3.5 text-[#1184b0]" /> Salary structure (computed by the server)</h4>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Monthly CTC (₹)</label>
+                  <input type="number" min={0} value={ctc} onChange={(e) => setCtc(e.target.value)} className={cls} placeholder="e.g. 30000" />
+                </div>
+                <p className="md:col-span-3 text-[11px] text-slate-500">
+                  Enter the CTC and the server derives every component below. Type a value in a field to override it for this employee. Changing the CTC recomputes any component you have not overridden.
+                </p>
+              </div>
+              {previewError && <p className="text-xs text-rose-600">{previewError}</p>}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {SALARY_KEYS.map((k) => (
+                  <div key={k}>
+                    <label className="block text-[11px] font-medium text-slate-600 mb-1">{SALARY_LABELS[k]}</label>
                     <input
-                      type="text"
-                      value={formData.bankAccount || ''}
-                      onChange={(e) => setFormData({ ...formData, bankAccount: e.target.value })}
-                      className="w-full px-2.5 py-1 text-xs border border-slate-300 rounded bg-white font-mono"
-                      placeholder="918273645019"
+                      type="number" min={0}
+                      value={overrides[k] ?? ''}
+                      onChange={(e) => setOverrides((o) => ({ ...o, [k]: e.target.value }))}
+                      placeholder={preview ? String(preview[k]) : '—'}
+                      className={cls}
                     />
                   </div>
-                  <div>
-                    <label className="block text-[11px] font-medium text-slate-700 mb-0.5">IFSC Code</label>
-                    <input
-                      type="text"
-                      value={formData.ifscCode || ''}
-                      onChange={(e) => setFormData({ ...formData, ifscCode: e.target.value.toUpperCase() })}
-                      className="w-full px-2.5 py-1 text-xs border border-slate-300 rounded bg-white font-mono uppercase"
-                      placeholder="HDFC0001234"
-                    />
-                  </div>
+                ))}
+              </div>
+              {preview && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                  {([
+                    ['Gross Salary (D)', preview.grossSalary], ['Net before PT (G)', preview.totalNetSalary],
+                    ['Annual CTC', preview.annualCtc], ['Monthly CTC (L)', preview.monthlyCtc],
+                  ] as const).map(([label, value]) => (
+                    <div key={label} className="bg-white p-2.5 rounded-xl border border-slate-200">
+                      <span className="text-[10px] text-slate-400 block font-medium">{label}</span>
+                      <span className="font-extrabold text-slate-900">{inr(value)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-[#1184b0]" /> Overtime</h4>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                <label className="flex items-center gap-2 text-xs font-medium text-slate-700">
+                  <input type="checkbox" checked={form.otEligible !== false} onChange={(e) => set('otEligible', e.target.checked)} /> Eligible for overtime pay
+                </label>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">OT multiplier (x hourly wage)</label>
+                  <input type="number" min={0} step="0.25" value={form.otMultiplier ?? ''} onChange={(e) => set('otMultiplier', e.target.value === '' ? undefined : Number(e.target.value))} className={cls} placeholder="default 2" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Fixed OT rate (₹ / hour)</label>
+                  <input type="number" min={0} value={form.otRatePerHour ?? ''} onChange={(e) => set('otRatePerHour', e.target.value === '' ? undefined : Number(e.target.value))} className={cls} placeholder="optional, overrides multiplier" />
                 </div>
               </div>
             </div>
 
-            {/* Modal Actions */}
-            <div className="pt-4 border-t border-slate-200 flex items-center justify-end space-x-3">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={saving}
-                className="px-5 py-2 text-xs font-semibold text-white bg-[#1184b0] hover:bg-[#0d6c92] rounded-lg shadow-sm flex items-center space-x-2 transition disabled:opacity-50"
-              >
-                <Save className="w-4 h-4" />
-                <span>{saving ? 'Saving...' : 'Save Annexure K Profile'}</span>
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5"><CreditCard className="w-3.5 h-3.5 text-[#1184b0]" /> Bank & statutory</h4>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                {text('Bank Name', 'bankName')}
+                {text('Account Number', 'bankAccount')}
+                {text('IFSC', 'ifscCode')}
+                {text('PAN', 'panNumber')}
+                {text('Aadhaar (12 digits)', 'aadhaarNumber')}
+                {text('UAN', 'uanNumber')}
+              </div>
+            </div>
+
+            {error && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold">
+                {error}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button type="button" onClick={onClose} className="px-4 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl">Cancel</button>
+              <button type="submit" disabled={saving} className="px-5 py-2 text-xs font-bold text-white bg-gradient-to-r from-[#1184b0] to-[#011638] rounded-xl flex items-center gap-2 disabled:opacity-50">
+                <Save className="w-4 h-4" />{saving ? 'Saving…' : 'Save changes'}
               </button>
             </div>
           </form>

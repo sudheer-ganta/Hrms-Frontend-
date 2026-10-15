@@ -2,7 +2,7 @@ import React from 'react';
 import { Building2, RefreshCw } from 'lucide-react';
 import { LocationBreakdown, AttendanceSource } from '../../types';
 import { StatusBadge } from '../common/StatusBadge';
-import { formatDateTime } from '../../lib/utils';
+import { formatInstantIst, istToday } from '../../lib/businessDate';
 
 interface LocationHealthProps {
   locations: LocationBreakdown[];
@@ -18,7 +18,7 @@ export const LocationHealth: React.FC<LocationHealthProps> = ({
   onSyncLocation,
   selectedDate,
 }) => {
-  const isToday = !selectedDate || selectedDate === new Date().toISOString().split('T')[0];
+  void selectedDate; void istToday;
 
   const getCardTheme = (id: string) => {
     if (id === 'office' || id.toLowerCase().includes('color')) {
@@ -53,15 +53,14 @@ export const LocationHealth: React.FC<LocationHealthProps> = ({
           <span>Biometric Location Hubs</span>
         </h3>
         <span className="text-xs text-slate-600 bg-white border border-slate-200 px-3 py-1 rounded-xl font-medium shadow-xs">
-          3 Configured Biometric Sources
+          {sources.length} Configured Source{sources.length === 1 ? '' : 's'}
         </span>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {sources.map((source) => {
-          const locData = locations.find((l) => l.sourceId === source.id);
+          const locData = locations.find((l) => l.siteId === source.siteId || l.sourceId === source.id);
           const todayPunches = locData?.todayPunches ?? 0;
-          const activeEmps = locData?.activeEmployeesToday ?? 0;
           const totalPunches = locData?.totalPunches ?? 0;
           const lastSyncAt = locData?.lastSyncAt || source.lastSync;
           const theme = getCardTheme(source.id);
@@ -77,9 +76,7 @@ export const LocationHealth: React.FC<LocationHealthProps> = ({
                     <h4 className="font-bold text-slate-900 text-sm font-heading">{source.name}</h4>
                     <p className="text-[11px] text-slate-500 font-medium">ID: {source.id}</p>
                   </div>
-                  <span className="text-[10px] bg-emerald-100 text-emerald-700 border border-emerald-200 px-2.5 py-0.5 rounded-full flex items-center gap-1 font-bold">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Connected
-                  </span>
+                  <StatusBadge status={source.status} size="sm" />
                 </div>
 
                 {/* Workforce & Attendance breakdown */}
@@ -87,19 +84,19 @@ export const LocationHealth: React.FC<LocationHealthProps> = ({
                   <div>
                     <p className="text-[10px] text-emerald-700 uppercase font-extrabold">Present</p>
                     <p className="text-sm font-extrabold text-emerald-600 mt-0.5 font-heading">
-                      {locData?.presentCount ?? locData?.activeEmployeesToday ?? 0}
+                      {locData ? locData.presentCount : 'N/A'}
                     </p>
                   </div>
                   <div className="border-x border-slate-200">
                     <p className="text-[10px] text-rose-700 uppercase font-extrabold">Absent</p>
                     <p className="text-sm font-extrabold text-rose-600 mt-0.5 font-heading">
-                      {locData?.absentCount ?? Math.max(0, (locData?.totalWorkforce ?? 50) - (locData?.activeEmployeesToday ?? 0))}
+                      {locData ? locData.absentCount : 'N/A'}
                     </p>
                   </div>
                   <div>
                     <p className="text-[10px] text-slate-500 uppercase font-extrabold">Workforce</p>
                     <p className="text-sm font-extrabold text-slate-800 mt-0.5 font-heading">
-                      {locData?.totalWorkforce ?? (source.id === 'office' ? 21 : source.id === 'budigere' ? 256 : 50)}
+                      {locData ? locData.totalWorkforce : 'N/A'}
                     </p>
                   </div>
                 </div>
@@ -108,11 +105,11 @@ export const LocationHealth: React.FC<LocationHealthProps> = ({
                 <div className="space-y-1 mb-2">
                   <div className="flex justify-between text-[10px] font-semibold text-slate-500">
                     <span>Attendance Rate</span>
-                    <span className="font-bold text-slate-800">{locData?.attendanceRate ?? 85}%</span>
+                    <span className="font-bold text-slate-800">{locData?.attendanceRate == null ? 'N/A' : `${locData.attendanceRate}%`}</span>
                   </div>
                   <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
                     <div
-                      style={{ width: `${locData?.attendanceRate ?? 85}%` }}
+                      style={{ width: `${locData?.attendanceRate ?? 0}%` }}
                       className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full transition-all duration-500"
                     />
                   </div>
@@ -121,7 +118,7 @@ export const LocationHealth: React.FC<LocationHealthProps> = ({
 
               <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
                 <span className="text-[10px] text-slate-500 font-medium">
-                  Last Sync: {lastSyncAt ? formatDateTime(lastSyncAt) : 'Ready'}
+                  Last Sync: {lastSyncAt ? formatInstantIst(lastSyncAt) : 'Never'}
                 </span>
                 <button
                   type="button"

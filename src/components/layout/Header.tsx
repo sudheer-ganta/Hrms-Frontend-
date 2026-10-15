@@ -33,18 +33,10 @@ export const Header: React.FC<HeaderProps> = ({
     const updateTime = () => {
       const now = new Date();
       setTime(
-        now.toLocaleDateString('en-US', {
-          weekday: 'short',
-          month: 'short',
-          day: 'numeric',
-        }) +
+        now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'Asia/Kolkata' }) +
           ' • ' +
-          now.toLocaleTimeString('en-US', {
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: false,
-          })
+          now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' }) +
+          ' IST'
       );
     };
 
@@ -129,7 +121,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Logout Button */}
           <button
-            onClick={logout}
+            onClick={() => void logout()}
             title="Sign Out"
             className="p-2 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-xl transition-all border border-transparent hover:border-rose-200"
           >

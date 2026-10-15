@@ -9,12 +9,12 @@ import {
   Clock,
   Calendar
 } from 'lucide-react';
-import { AttendanceRecord, Pagination } from '../../types';
+import { RawPunch, Pagination } from '../../types';
 import { TableSkeleton } from '../common/TableSkeleton';
 import { EmptyState } from '../common/EmptyState';
 
 interface AttendanceTableProps {
-  records: AttendanceRecord[];
+  records: RawPunch[];
   pagination: Pagination;
   isLoading: boolean;
   onPageChange: (newPage: number) => void;
