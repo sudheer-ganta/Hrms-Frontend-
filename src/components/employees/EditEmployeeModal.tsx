@@ -108,7 +108,7 @@ export const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ isOpen, on
         operationsCategory: form.operationsCategory, managerEmpCode: form.managerEmpCode ?? '', managerName: form.managerName,
         status: form.status, otEligible: form.otEligible, otMultiplier: form.otMultiplier, otRatePerHour: form.otRatePerHour, notes: form.notes,
         bankName: form.bankName, bankAccount: form.bankAccount, ifscCode: form.ifscCode, panNumber: form.panNumber,
-        aadhaarNumber: form.aadhaarNumber, uanNumber: form.uanNumber,
+        aadhaarNumber: form.aadhaarNumber, uanNumber: form.uanNumber, esiNumber: form.esiNumber,
       };
       // Only send salary inputs when the user actually changed them.
       if (JSON.stringify(salaryInputs) !== initialSalaryKey) Object.assign(payload, salaryInputs);
@@ -257,6 +257,7 @@ export const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ isOpen, on
                 {text('PAN', 'panNumber')}
                 {text('Aadhaar (12 digits)', 'aadhaarNumber')}
                 {text('UAN', 'uanNumber')}
+                {text('ESI IP Number', 'esiNumber')}
               </div>
             </div>
 

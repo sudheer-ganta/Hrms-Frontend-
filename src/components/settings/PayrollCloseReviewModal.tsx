@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Lock, AlertTriangle, Users, IndianRupee, ShieldAlert } from 'lucide-react';
 import { api } from '../../services/api';
-import { EmployeePayrollSummary } from '../../types';
+import { AttendanceCoverage, EmployeePayrollSummary } from '../../types';
 import { errorMessage } from '../../lib/apiError';
 
 interface PayrollCloseReviewModalProps {
@@ -25,17 +25,22 @@ export const PayrollCloseReviewModal: React.FC<PayrollCloseReviewModalProps> = (
   const [isLoading, setIsLoading] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [coverage, setCoverage] = useState<AttendanceCoverage | null>(null);
+  const [acknowledged, setAcknowledged] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
     let isMounted = true;
     setIsLoading(true);
     setError(null);
+    setCoverage(null);
+    setAcknowledged(false);
 
-    api.getAllPayroll(month)
-      .then((data) => {
+    Promise.all([api.getAllPayroll(month), api.getPayrollCoverage(month)])
+      .then(([data, cov]) => {
         if (isMounted) {
           setSummaries([...data].sort((a, b) => (b.netPayable || 0) - (a.netPayable || 0)));
+          setCoverage(cov);
         }
       })
       .catch((err) => {
@@ -56,12 +61,15 @@ export const PayrollCloseReviewModal: React.FC<PayrollCloseReviewModalProps> = (
   const configured = summaries.filter((s) => s.monthlyCtc > 0);
   const unconfigured = summaries.filter((s) => !s.monthlyCtc || s.monthlyCtc <= 0);
   const totalNetPay = configured.reduce((sum, s) => sum + (s.netPayable || 0), 0);
+  const missingDates = coverage?.missingDates ?? [];
+  // The backend refuses to lock a month with missing attendance unless this is acknowledged.
+  const needsAcknowledgement = missingDates.length > 0;
 
   const handleConfirm = async () => {
     setIsConfirming(true);
     setError(null);
     try {
-      await api.closePayrollMonth(month);
+      await api.closePayrollMonth(month, acknowledged);
       onConfirmed();
     } catch (err) {
       setError(errorMessage(err, 'Failed to close payroll month'));
@@ -133,6 +141,24 @@ export const PayrollCloseReviewModal: React.FC<PayrollCloseReviewModalProps> = (
                 </div>
               </div>
 
+              {needsAcknowledgement && coverage && (
+                <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium space-y-2">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>
+                      Attendance is missing for {missingDates.length} of {coverage.workingDays} working days: nobody has a
+                      single punch stored for {missingDates.slice(0, 6).join(', ')}{missingDates.length > 6 ? ', …' : ''}.
+                      Everyone would be locked as loss of pay on those days. Sync attendance for {month} (Settings → Sync)
+                      and reopen this review.
+                    </span>
+                  </div>
+                  <label className="flex items-start gap-2 pl-6 cursor-pointer">
+                    <input type="checkbox" className="mt-0.5" checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} />
+                    <span>These days really had no attendance; lock {month} anyway.</span>
+                  </label>
+                </div>
+              )}
+
               {unconfigured.length > 0 && (
                 <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium flex items-start gap-2">
                   <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -190,7 +216,7 @@ export const PayrollCloseReviewModal: React.FC<PayrollCloseReviewModalProps> = (
           <button
             type="button"
             onClick={handleConfirm}
-            disabled={isLoading || isConfirming || totalEmployees === 0}
+            disabled={isLoading || isConfirming || totalEmployees === 0 || (needsAcknowledgement && !acknowledged)}
             className="inline-flex items-center gap-2 px-5 py-2 text-xs font-heading font-bold text-white bg-gradient-to-r from-brand-500 to-brand-base hover:opacity-95 rounded-xl shadow-md shadow-brand-500/20 transition-all active:scale-95 disabled:opacity-50"
           >
             <Lock className="w-3.5 h-3.5" />

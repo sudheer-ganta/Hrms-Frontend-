@@ -8,6 +8,8 @@ import { addDays, businessDateFromInstant, daysInMonth, istMonth, istToday, week
 import { normalizeError, errorMessage } from '../src/lib/apiError';
 import { STATUS_META, metaFor, formatMinutes } from '../src/lib/attendanceDisplay';
 import { ATTENDANCE_STATUSES } from '../src/types';
+import type { EmployeePayrollSummary } from '../src/types';
+import { buildSlipView, dotDate, periodLabel, shortMonth } from '../src/lib/payslipLayout';
 
 describe('IST business-date helpers (browser timezone independent)', () => {
   test('00:30 IST on the 1st is still the 1st, not the previous UTC day', () => {
@@ -114,5 +116,52 @@ describe('cross-repo contract (runs when the backend checkout sits next to the f
     const feSrc = fs.readFileSync(path.resolve(process.cwd(), 'src', 'types', 'index.ts'), 'utf-8');
     assert.deepEqual(fields(feSrc, 'EmployeePayrollSummary'), fields(beSrc, 'EmployeePayrollSummary'));
     assert.deepEqual(fields(feSrc, 'PayslipBreakdown'), fields(beSrc, 'PayslipBreakdown'));
+  });
+});
+
+describe('payslip layout (display only)', () => {
+  const summary = {
+    month: '2026-09', grossSalary: 28000, basicSalary: 12174, da: 2826, hra: 6000, allowances: 0, otherAllowance: 7000,
+    payslip: {
+      earnings: [
+        { code: 'BASIC', label: 'Basic', amount: 12174 }, { code: 'DA', label: 'Dearness Allowance', amount: 2826 },
+        { code: 'HRA', label: 'HRA', amount: 6000 }, { code: 'SPECIAL', label: 'Special Allowance', amount: 0 },
+        { code: 'OTHER', label: 'Other Allowance', amount: 7000 },
+        { code: 'WEEKLY_OFF_WORK', label: 'Weekly-off Working', amount: 1000, note: '1 day(s) @ 2x' },
+        { code: 'OT', label: 'Overtime', amount: 500, note: '2h @ 250/h' },
+      ],
+      deductions: [
+        { code: 'LOP', label: 'Loss of Pay', amount: 900 }, { code: 'PF', label: 'Employee PF', amount: 2192 },
+        { code: 'PT', label: 'Professional Tax', amount: 200 },
+      ],
+      employerBorne: [], totalEarnings: 29500, totalDeductions: 3292, netPay: 26208,
+    },
+  } as unknown as EmployeePayrollSummary;
+
+  test('amounts land under the template headings and every backend line stays visible', () => {
+    const v = buildSlipView(summary);
+    const earn = Object.fromEntries(v.earnings.map((r) => [r.label, r]));
+    assert.equal(earn['Basic Pay'].amount, 12174);
+    assert.equal(earn['VDA'].amount, 2826);
+    assert.equal(earn['Sunday working Allowance'].amount, 1000);
+    assert.equal(earn['incentive for Sep_26'].amount, 0);
+    assert.ok(v.earnings.some((r) => r.label.startsWith('Overtime')), 'a line with no heading is appended, not dropped');
+    assert.ok(v.deductions.some((r) => r.label.startsWith('Loss of Pay')));
+    assert.equal(v.deductions.find((r) => r.label === 'PF')!.amount, 2192);
+  });
+
+  test('the displayed columns foot to the backend totals (nothing is recomputed in the UI)', () => {
+    const v = buildSlipView(summary);
+    const sum = (rows: { amount: number }[]) => Math.round(rows.reduce((a, r) => a + r.amount, 0) * 100) / 100;
+    assert.equal(sum(v.earnings), v.totalEarnings);
+    assert.equal(sum(v.deductions), v.totalDeductions);
+    assert.equal(v.totalEarnings - v.totalDeductions, v.netPay);
+  });
+
+  test('template date and period formats', () => {
+    assert.equal(dotDate('2026-09-01'), '01.09.2026');
+    assert.equal(dotDate(undefined), '');
+    assert.equal(periodLabel('2026-09'), 'Sep- 2026');
+    assert.equal(shortMonth('2026-09'), 'Sep_26');
   });
 });

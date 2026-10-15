@@ -4,7 +4,7 @@ import { normalizeError } from '../lib/apiError';
 import type {
   AttendanceCalendar, AttendanceDay, AttendanceDaysResponse, AttendanceRegularizationRequest, AttendanceSource, AttendanceStatus,
   CompanyHoliday, CreateRequestInput, DashboardStats, EmployeePayrollSummary, EmployeeProfile, EmployeeProfileInput,
-  HRMSPolicySettings, HealthStatus, LeaveBalance, LeaveType, OtAdjustments, Pagination, PayrollRunStatus, PolicyUpdate, PunchResult,
+  AttendanceCoverage, HRMSPolicySettings, HealthStatus, LeaveBalance, LeaveType, OtAdjustments, Pagination, PayrollRunStatus, PolicyUpdate, PunchResult,
   PunchStatus, RawPunchResponse, SalaryBreakdown, SchedulerStatus, SendPayslipResponse, Site, SyncAllResult, SyncLogsResponse,
   SyncResult, TimesheetEmployee,
 } from '../types';
@@ -132,7 +132,9 @@ export const api = {
   sendPayslipEmail: (payload: { empCode: string; month: string; recipientEmail?: string }) => post<SendPayslipResponse>('/payroll/send-payslip', payload),
   getPayrollRunStatus: (month: string) => get<PayrollRunStatus>(`/payroll/runs/${month}`),
   listPayrollRuns: () => get<PayrollRunStatus[]>('/payroll/runs'),
-  closePayrollMonth: (month: string) => post<PayrollRunStatus>(`/payroll/runs/${month}/close`),
+  getPayrollCoverage: (month: string) => get<AttendanceCoverage>(`/payroll/runs/${month}/coverage`),
+  closePayrollMonth: (month: string, acknowledgeMissingAttendance = false) =>
+    post<PayrollRunStatus>(`/payroll/runs/${month}/close`, acknowledgeMissingAttendance ? { acknowledgeMissingAttendance: true } : {}),
   reopenPayrollMonth: (month: string, reason: string) => post<PayrollRunStatus>(`/payroll/runs/${month}/reopen`, { reason }),
 
   // ---- requests (PENDING → APPROVED → APPLIED; explicit revoke)

@@ -34,3 +34,18 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #1184b0;
 }
+
+/* Payslip: coloured total rows (match the company template) and a print mode that outputs only the slip */
+.payslip-sheet .slip-total td { background-color: #ffff00; }
+.payslip-sheet .slip-net td { background-color: #fce4d6; }
+
+@media print {
+  @page { size: A4; margin: 10mm; }
+  body * { visibility: hidden; }
+  #payslip-print, #payslip-print * { visibility: visible; }
+  #payslip-print {
+    position: fixed; left: 0; top: 0; width: 100%;
+    border: none; box-shadow: none;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+}

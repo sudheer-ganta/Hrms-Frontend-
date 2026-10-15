@@ -4,7 +4,7 @@ import { EmployeePayrollSummary } from '../../types';
 import { api } from '../../services/api';
 import { errorMessage } from '../../lib/apiError';
 import { istMonth, monthLabel, monthOptions } from '../../lib/businessDate';
-import { inr } from '../../lib/utils';
+import { PAYSLIP_COMPANY, buildSlipView, dotDate, periodLabel } from '../../lib/payslipLayout';
 import { useAuth } from '../../context/AuthContext';
 
 interface PayslipModalProps {
@@ -64,10 +64,12 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({ isOpen, onClose, emp
   };
 
   const p = summary?.payslip;
+  const slip = summary && p ? buildSlipView(summary) : null;
+  const money = (n: number) => n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-      <div className="relative w-full max-w-3xl bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[92vh]">
+      <div className="payslip-modal relative w-full max-w-3xl bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[92vh]">
         <div className="px-6 py-4 bg-[#011638] text-white flex flex-wrap items-center justify-between gap-3 print:hidden">
           <div className="flex items-center space-x-3">
             <div className="p-2 rounded-xl bg-sky-500/20 text-sky-400 border border-sky-400/30"><DollarSign className="w-5 h-5" /></div>
@@ -120,120 +122,92 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({ isOpen, onClose, emp
           ) : loadError || !summary || !p ? (
             <div className="p-12 text-center text-sm text-rose-700">{loadError ?? 'No payslip available.'}</div>
           ) : (
-            <div ref={payslipRef} className="bg-white rounded-xl p-6 md:p-8 border border-slate-200 shadow-sm print:border-none print:shadow-none space-y-6">
+            <div ref={payslipRef} id="payslip-print" className="payslip-sheet bg-white border border-slate-300 shadow-sm text-black">
               {summary.isProvisional && (
-                <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold">
+                <div className="p-2 bg-amber-50 border-b border-amber-200 text-amber-800 text-xs font-semibold print:hidden">
                   Provisional: this month is still open, so these figures can change until payroll is closed.
                 </div>
               )}
 
-              <div className="border-b-2 border-slate-800 pb-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                <div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-xl font-heading font-extrabold text-[#011638] tracking-tight">ColorMyles</span>
-                    <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-[#1184b0] text-white rounded">HRMS</span>
+              <div className="px-6 pt-5 pb-3">
+                <div className="flex items-center gap-4">
+                  <img src={PAYSLIP_COMPANY.logo} alt="" className="h-16 w-16 shrink-0 object-contain" />
+                  <div className="flex-1 text-center pr-16">
+                    <h2 className="text-3xl font-bold tracking-wide">{PAYSLIP_COMPANY.name}</h2>
+                    <p className="text-[11px] mt-1.5">{PAYSLIP_COMPANY.address}</p>
                   </div>
-                  <p className="text-xs text-slate-500 mt-0.5">Salary & Attendance Statement</p>
                 </div>
-                <div className="text-left md:text-right">
-                  <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Payslip Period</div>
-                  <div className="text-base font-bold text-slate-800">{monthLabel(summary.month)}</div>
-                  {!summary.isProvisional && <div className="text-[10px] text-slate-400">Final · version {summary.snapshotVersion}</div>}
-                </div>
+                <p className="text-sm font-semibold mt-3 text-center">Pay Slip for the period of {periodLabel(summary.month)}</p>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-100 text-xs">
-                {([
-                  ['Employee Code', summary.empCode, true],
-                  ['Employee Name', summary.name, false],
-                  ['Department', summary.department, false],
-                  ['Designation', summary.designation, false],
-                  ['Location', summary.location, false],
-                  ['Date of Birth', summary.dob, false],
-                  ['Email', summary.email, false],
-                  ['Bank A/C', summary.bankAccount ? `${'*'.repeat(Math.max(0, summary.bankAccount.length - 4))}${summary.bankAccount.slice(-4)}` : undefined, true],
-                ] as const).map(([label, value, mono]) => (
-                  <div key={label}>
-                    <span className="text-slate-400 block font-medium">{label}</span>
-                    <span className={`font-semibold text-slate-800 truncate block ${mono ? 'font-mono' : ''}`}>{value || '—'}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="bg-sky-50/60 p-4 rounded-xl border border-sky-100">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-sky-900 mb-2.5 flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-[#1184b0]" /> Attendance & Overtime Summary</h4>
-                <div className="grid grid-cols-3 sm:grid-cols-7 gap-2 text-center text-xs">
+              <div className="px-6 pb-3 text-[13px]">
+                <table className="w-full"><tbody>
                   {([
-                    ['Month Days', summary.monthDays, 'text-slate-800'],
-                    ['Present', summary.presentDays, 'text-emerald-600'],
-                    ['Half Days', summary.halfDays, 'text-amber-600'],
-                    ['Paid Leave', summary.leaveDays, 'text-sky-600'],
-                    ['LOP Days', summary.lopDays, 'text-rose-600'],
-                    ['Paid Days', summary.payableDays, 'text-[#1184b0]'],
-                    ['OT Hours', `${summary.totalOtHours}h`, 'text-violet-600'],
-                  ] as const).map(([label, value, color]) => (
-                    <div key={label} className="bg-white p-2 rounded-lg border border-sky-100">
-                      <span className="text-[10px] text-slate-500 block uppercase font-medium">{label}</span>
-                      <span className={`font-bold text-sm ${color}`}>{value}</span>
-                    </div>
+                    ['Employee Id', summary.empCode],
+                    ['Name', summary.name],
+                    ['Date Of Joining', dotDate(summary.doj)],
+                    ['UAN number', summary.uanNumber],
+                    ['ESI IP Number', summary.esiNumber || '0'], // the template prints 0 when the employee has no ESI number
+                    ['Designation', summary.designation],
+                    ['Total Days', summary.monthDays],
+                    ['Days of Worked', summary.payableDays],
+                    ['Days Absent', summary.lopDays],
+                  ] as const).map(([label, value]) => (
+                    <tr key={label}>
+                      <td className="py-0.5 w-[55%]">{label}</td>
+                      <td className="py-0.5 w-4">:</td>
+                      <td className="py-0.5 font-semibold">{value === undefined || value === '' ? '—' : value}</td>
+                    </tr>
                   ))}
-                </div>
+                </tbody></table>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="border border-slate-200 rounded-xl overflow-hidden">
-                  <div className="bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-900 border-b border-emerald-100 uppercase tracking-wider flex justify-between"><span>Earnings</span><span>Amount (₹)</span></div>
-                  <div className="p-3 space-y-2 text-xs divide-y divide-slate-100">
-                    {p.earnings.map((l) => (
-                      <div key={l.code} className="flex justify-between pt-1.5 first:pt-0">
-                        <span className="text-slate-600">{l.label}{l.note && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 font-mono">{l.note}</span>}</span>
-                        <span className="font-semibold text-slate-800">{inr(l.amount)}</span>
-                      </div>
-                    ))}
-                    <div className="flex justify-between pt-2 border-t-2 border-slate-200 font-bold text-slate-900"><span>Total Earnings</span><span>{inr(p.totalEarnings)}</span></div>
-                  </div>
-                </div>
-
-                <div className="border border-slate-200 rounded-xl overflow-hidden">
-                  <div className="bg-rose-50 px-4 py-2 text-xs font-bold text-rose-900 border-b border-rose-100 uppercase tracking-wider flex justify-between"><span>Deductions</span><span>Amount (₹)</span></div>
-                  <div className="p-3 space-y-2 text-xs divide-y divide-slate-100">
-                    {p.deductions.length === 0 && <div className="text-slate-400">No deductions</div>}
-                    {p.deductions.map((l) => (
-                      <div key={l.code} className="flex justify-between pt-1.5 first:pt-0">
-                        <span className="text-slate-600">{l.label}{l.note && <span className="ml-1.5 text-[10px] text-slate-400">({l.note})</span>}</span>
-                        <span className="font-semibold text-rose-700">-{inr(l.amount)}</span>
-                      </div>
-                    ))}
-                    <div className="flex justify-between pt-2 border-t-2 border-slate-200 font-bold text-rose-700"><span>Total Deductions</span><span>-{inr(p.totalDeductions)}</span></div>
-                  </div>
-                </div>
+              <div className="overflow-x-auto print:overflow-visible">
+              <table className="w-full min-w-[560px] text-[13px] border-collapse">
+                <thead>
+                  <tr className="font-semibold">
+                    <th className="border border-black px-2 py-1 text-left w-[28%]">Earnings</th>
+                    <th className="border border-black px-2 py-1 text-right w-[11%]">Fixed Wages</th>
+                    <th className="border border-black px-2 py-1 text-right w-[11%]">Amount</th>
+                    <th className="border border-black px-2 py-1 text-left w-[28%]">Deductions</th>
+                    <th className="border border-black px-2 py-1 text-right w-[11%]">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Array.from({ length: Math.max(slip!.earnings.length, slip!.deductions.length) }).map((_, i) => {
+                    const e = slip!.earnings[i];
+                    const d = slip!.deductions[i];
+                    return (
+                      <tr key={i}>
+                        <td className="border-x border-black px-2 py-0.5">{e?.label ?? ''}</td>
+                        <td className="border-x border-black px-2 py-0.5 text-right">{e ? (e.fixed ?? 0) : ''}</td>
+                        <td className="border-x border-black px-2 py-0.5 text-right">{e ? e.amount : ''}</td>
+                        <td className="border-x border-black px-2 py-0.5">{d?.label ?? ''}</td>
+                        <td className="border-x border-black px-2 py-0.5 text-right">{d ? d.amount : ''}</td>
+                      </tr>
+                    );
+                  })}
+                  <tr className="font-semibold slip-total">
+                    <td className="border border-black px-2 py-1">Total Earnings</td>
+                    <td className="border border-black px-2 py-1 text-right">{money(slip!.totalFixed)}</td>
+                    <td className="border border-black px-2 py-1 text-right">{money(slip!.totalEarnings)}</td>
+                    <td className="border border-black px-2 py-1">Total Deductions</td>
+                    <td className="border border-black px-2 py-1 text-right">{money(slip!.totalDeductions)}</td>
+                  </tr>
+                  <tr className="font-semibold slip-net">
+                    <td className="border border-black px-2 py-1" colSpan={2}>Net Pay</td>
+                    <td className="border border-black px-2 py-1 text-right" colSpan={3}>{money(slip!.netPay)}</td>
+                  </tr>
+                </tbody>
+              </table>
               </div>
 
-              {p.employerBorne.length > 0 && (
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
-                  <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1.5">Employer contributions (not deducted from your pay)</div>
-                  <div className="flex flex-wrap gap-x-6 gap-y-1 text-slate-600">
-                    {p.employerBorne.map((l) => (<span key={l.code}>{l.label}: <strong className="text-slate-900 font-mono">{inr(l.amount)}</strong></span>))}
-                    <span>Monthly CTC: <strong className="text-slate-900 font-mono">{inr(summary.monthlyCtc)}</strong></span>
-                  </div>
-                </div>
-              )}
-
-              <div className="bg-gradient-to-r from-[#011638] to-[#1184b0] text-white p-5 rounded-xl flex flex-col md:flex-row items-center justify-between gap-3 shadow-md">
-                <div>
-                  <div className="text-xs uppercase tracking-widest text-sky-200 font-bold">Net Take-Home Salary</div>
-                  <div className="text-xs text-sky-100 mt-0.5 italic">{summary.netPayableWords}</div>
-                </div>
-                <div className="text-2xl md:text-3xl font-heading font-extrabold tracking-tight">{inr(p.netPay)}</div>
+              <div className="px-6 py-4 text-[13px]">
+                <span className="font-semibold">Amount in Words: </span>
+                <div className="mt-1">{summary.netPayableWords}</div>
               </div>
 
-              <div className="pt-6 border-t border-slate-200 text-slate-500 text-[11px] flex justify-between items-end">
-                <div>
-                  <p>Generated by ColorMyles HRMS.</p>
-                  <p className="text-[10px] text-slate-400">Confidential document. For the employee's personal records only.</p>
-                </div>
-                <div className="text-right"><div className="w-32 border-b border-slate-300 mb-1" /><p className="font-semibold text-slate-700">Authorized Signatory</p></div>
-              </div>
+              <p className="text-center text-[12px] font-semibold pb-4 pt-10">{PAYSLIP_COMPANY.footer}</p>
             </div>
           )}
         </div>

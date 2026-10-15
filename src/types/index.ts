@@ -390,6 +390,7 @@ export interface EmployeeProfile {
   panNumber?: string;
   aadhaarNumber?: string;
   uanNumber?: string;
+  esiNumber?: string;
 
   status: EmployeeStatus;
   notes?: string;
@@ -403,7 +404,7 @@ export type EmployeeProfileInput = Partial<Pick<EmployeeProfile,
   | 'shiftName' | 'status' | 'otEligible' | 'otMultiplier' | 'otRatePerHour' | 'notes'
   | 'monthlyCtc' | 'basicSalary' | 'da' | 'hra' | 'specialAllowance' | 'otherAllowance'
   | 'employeePf' | 'employerPf' | 'employeeEsic' | 'employerEsic' | 'professionalTax' | 'minimumBonus'
-  | 'bankName' | 'bankAccount' | 'ifscCode' | 'panNumber' | 'aadhaarNumber' | 'uanNumber'>>;
+  | 'bankName' | 'bankAccount' | 'ifscCode' | 'panNumber' | 'aadhaarNumber' | 'uanNumber' | 'esiNumber'>>;
 
 export interface SalaryBreakdown {
   monthlyCtc: number;
@@ -528,6 +529,16 @@ export interface EmployeePayrollSummary {
   ifscCode?: string;
   bankName?: string;
   panNumber?: string;
+  uanNumber?: string;
+  esiNumber?: string;
+}
+
+/** Working days of a month with no stored attendance for anyone (they would lock as loss of pay for everybody). */
+export interface AttendanceCoverage {
+  month: string;
+  workingDays: number;
+  daysWithData: number;
+  missingDates: string[];
 }
 
 export interface OtAdjustment {
