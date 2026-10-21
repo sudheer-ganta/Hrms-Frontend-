@@ -48,7 +48,7 @@ export const buildPayrollTimesheetCsv = (
     'Payroll Month', 'Payroll Status',
     'Present Days', 'Half Days', 'Paid Leave Days', 'Absent Days', 'Weekly Offs', 'Holidays', 'Payable Days', 'LOP Days',
     'Total Work Hours', 'OT Hours', 'Weekly-off Work Days', 'Holiday Work Days', 'Weekly-off Work Pay', 'Holiday Work Pay',
-    'Monthly CTC', 'Gross Earnings', 'PF Deduction', 'ESIC Deduction', 'LOP Deduction', 'Total Deductions', 'Net Pay',
+    'Monthly CTC', 'Gross Earnings', 'PF Deduction', 'ESIC Deduction', 'PT Deduction', 'Salary Advance', 'Other Deduction', 'LWF', 'Attn Bonus', 'Increments / Reimb.', 'LOP Deduction', 'Total Deductions', 'Net Pay',
     'Bank A/C', 'Bank IFSC',
     ...days.map((d) => `Day ${d.split('-')[2] || d}`),
   ];
@@ -67,6 +67,8 @@ export const buildPayrollTimesheetCsv = (
       ps?.weeklyOffWorkDays ?? '', ps?.holidayWorkDays ?? '', hasSalary ? ps!.weeklyOffWorkEarnings : '', hasSalary ? ps!.holidayWorkEarnings : '',
       hasSalary ? ps!.monthlyCtc : 'Not Configured',
       hasSalary ? ps!.grossEarnings : '', hasSalary ? ps!.pfDeduction : '', hasSalary ? ps!.esiDeduction : '',
+      hasSalary ? (ps!.ptDeductedFromNet ? ps!.ptDeduction : 0) : '', hasSalary ? ps!.salaryAdvance ?? 0 : '', hasSalary ? ps!.otherDeduction ?? 0 : '',
+      hasSalary ? ps!.lwfDeduction ?? 0 : '', hasSalary ? ps!.attendanceBonus ?? 0 : '', hasSalary ? ps!.incrementAmount ?? 0 : '',
       hasSalary ? ps!.lopDeduction : '', hasSalary ? ps!.payslip.totalDeductions : '', hasSalary ? ps!.netPayable : '',
       ps?.bankAccount ?? '', ps?.ifscCode ?? '',
       ...dayCells,

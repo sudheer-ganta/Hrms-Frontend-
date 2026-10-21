@@ -3,10 +3,11 @@ import { LocationTabs } from '../components/layout/LocationTabs';
 import { TableSkeleton } from '../components/common/TableSkeleton';
 import { EmptyState } from '../components/common/EmptyState';
 import { api } from '../services/api';
-import { useDataVersion } from '../services/dataSync';
+import { useDataVersion, useLastUpdatedTime } from '../services/dataSync';
 import { AttendanceSource, EmployeeProfile, EmployeePayrollSummary } from '../types';
 import { istMonth } from '../lib/businessDate';
-import { Users, Search, Building2, Edit3, DollarSign, Download, Eye, Mail, Calendar, UserCheck } from 'lucide-react';
+import { errorMessage } from '../lib/apiError';
+import { Users, Search, Building2, Edit3, DollarSign, Download, Eye, Mail, Calendar, UserCheck, RefreshCw } from 'lucide-react';
 import { EmployeeDrawer } from '../components/employees/EmployeeDrawer';
 import { EditEmployeeModal } from '../components/employees/EditEmployeeModal';
 import { PayslipModal } from '../components/payroll/PayslipModal';
@@ -36,6 +37,10 @@ export const Employees: React.FC<EmployeesPageProps> = ({
     employeeName: string;
     siteName: string;
   } | null>(null);
+
+  // Bulk shift assignment
+  const [otBusy, setOtBusy] = useState<string | null>(null); // empCode whose OT switch is being saved
+  const [otError, setOtError] = useState<string | null>(null);
 
   const [editEmpCode, setEditEmpCode] = useState<string | null>(null);
   const [payslipEmpCode, setPayslipEmpCode] = useState<string | null>(null);
@@ -72,6 +77,7 @@ export const Employees: React.FC<EmployeesPageProps> = ({
   };
 
   const dataVersion = useDataVersion();
+  const lastUpdated = useLastUpdatedTime();
   useEffect(() => {
     loadData();
   }, [activeSourceId, dataVersion]);
@@ -96,6 +102,21 @@ export const Employees: React.FC<EmployeesPageProps> = ({
 
     return true;
   });
+
+  /** One click switches overtime on or off for a person. Overtime itself is worked out from their punch out. */
+  const toggleOt = async (emp: EmployeeProfile) => {
+    const next = emp.otEligible === false;
+    setOtBusy(emp.empCode);
+    setOtError(null);
+    try {
+      await api.updateEmployeeProfile(emp.empCode, { otEligible: next });
+      setProfiles((prev) => prev.map((p) => (p.empCode === emp.empCode ? { ...p, otEligible: next } : p)));
+    } catch (err) {
+      setOtError(errorMessage(err, 'Could not change overtime'));
+    } finally {
+      setOtBusy(null);
+    }
+  };
 
   const handleExportDirectoryCSV = () => {
     const rows: string[] = [];
@@ -168,6 +189,22 @@ export const Employees: React.FC<EmployeesPageProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200/80 text-[11px] font-medium text-slate-600 font-mono">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Updated {lastUpdated.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' })} IST</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={loadData}
+            disabled={isLoading}
+            className="p-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-brand-500 rounded-xl transition-all shadow-xs flex items-center gap-1.5 text-xs font-semibold"
+            title="Refresh Directory from MongoDB"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-brand-500' : ''}`} />
+            <span className="hidden sm:inline">Refresh Data</span>
+          </button>
+
           <button
             onClick={handleExportDirectoryCSV}
             className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl shadow-xs flex items-center gap-1.5 transition"
@@ -179,9 +216,10 @@ export const Employees: React.FC<EmployeesPageProps> = ({
           <button
             onClick={() => onOpenSync(activeSourceId !== 'all' ? activeSourceId : undefined)}
             className="px-3.5 py-2 text-xs font-semibold text-white bg-[#1184b0] hover:bg-[#0d6c92] rounded-xl shadow-xs flex items-center gap-1.5 transition"
+            title="Pull new enrolled employee records and punches from external hardware"
           >
             <UserCheck className="w-4 h-4" />
-            <span>Sync Biometrics</span>
+            <span>Sync Hardware</span>
           </button>
         </div>
       </div>
@@ -214,7 +252,11 @@ export const Employees: React.FC<EmployeesPageProps> = ({
         </div>
       </div>
 
-      {/* Main Employee Table */}
+      <p className="text-[11px] text-slate-500 px-1">
+        <span className="font-bold text-slate-700">OT</span> on = overtime is worked out automatically from the punch out (overtime hours are set in Settings → Shifts). Click the switch to turn it on or off for a person. A person&apos;s shift is set in their profile.
+        {otError && <span className="ml-2 font-semibold text-rose-600">{otError}</span>}
+      </p>
+
       <div className="rounded-2xl bg-white border border-slate-200/80 shadow-card overflow-hidden">
         {isLoading ? (
           <TableSkeleton rows={8} cols={8} />
@@ -236,6 +278,8 @@ export const Employees: React.FC<EmployeesPageProps> = ({
                   <th className="py-3.5 px-4">Employee Details</th>
                   <th className="py-3.5 px-4">Department / Role</th>
                   <th className="py-3.5 px-4 whitespace-nowrap">DOB</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">Shift</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap text-center">OT</th>
                   <th className="py-3.5 px-4 whitespace-nowrap">Location</th>
                   <th className="py-3.5 px-4 whitespace-nowrap">Monthly CTC</th>
                   <th className="py-3.5 px-4 whitespace-nowrap">Attendance (MTD)</th>
@@ -307,6 +351,26 @@ export const Employees: React.FC<EmployeesPageProps> = ({
                         ) : (
                           <span className="text-slate-400 italic text-[11px]">—</span>
                         )}
+                      </td>
+
+                      {/* Shift */}
+                      <td className="py-3.5 px-4 whitespace-nowrap text-slate-600">
+                        {emp.shiftName ? emp.shiftName : <span className="text-slate-400 italic text-[11px]">Default</span>}
+                      </td>
+
+                      {/* OT switch */}
+                      <td className="py-3.5 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={emp.otEligible !== false}
+                          aria-label={`Overtime for ${emp.name}`}
+                          disabled={otBusy === emp.empCode}
+                          onClick={() => toggleOt(emp)}
+                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition disabled:opacity-50 ${emp.otEligible !== false ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                        >
+                          <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition ${emp.otEligible !== false ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                        </button>
                       </td>
 
                       {/* Location */}

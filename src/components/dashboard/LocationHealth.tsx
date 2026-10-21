@@ -124,9 +124,10 @@ export const LocationHealth: React.FC<LocationHealthProps> = ({
                   type="button"
                   onClick={() => onSyncLocation(source.id)}
                   className={`text-xs px-3 py-1.5 rounded-xl border transition-all flex items-center gap-1 font-bold shadow-xs active:scale-95 ${theme.btnStyle}`}
+                  title="Pull new attendance logs from biometric hardware into MongoDB"
                 >
                   <RefreshCw className="w-3 h-3" />
-                  <span>Sync</span>
+                  <span>Sync Device</span>
                 </button>
               </div>
             </div>

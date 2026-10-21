@@ -1,37 +1,188 @@
 import { useSyncExternalStore } from 'react';
+import { TOKEN_STORAGE_KEY } from './api';
 
 /**
- * App-wide "data changed" signal. Every successful write (approve a request,
- * save settings, sync, punch...) bumps `mutation`, and returning to the tab
- * after a while bumps `focus` (background syncs may have changed things).
- * Pages add the version to their fetch effect's dependencies so they all stay
- * in step without each one knowing about the others.
+ * App-wide "data changed" signal.
+ * - Every local write bumps `mutation` and broadcasts across open tabs.
+ * - Server-Sent Events (SSE) pushes cross-user & background scheduler changes in real time.
+ * - Cross-tab communication via BroadcastChannel synchronizes multiple tabs with 0 latency.
+ * - Returning to the tab / window focus checks for updates.
  */
+
 let mutation = 0;
 let focus = 0;
-let lastFocusBump = Date.now();
-let timer: ReturnType<typeof setTimeout> | undefined;
-const listeners = new Set<() => void>();
+let lastFocusCheck = Date.now();
+let lastUpdatedTime = new Date();
+let currentKnownRevision = 0;
 
-const emit = () => listeners.forEach((l) => l());
+let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+let fallbackPollTimer: ReturnType<typeof setInterval> | undefined;
+let eventSource: EventSource | null = null;
+let reconnectAttempts = 0;
+
+const listeners = new Set<() => void>();
+const emit = () => {
+  lastUpdatedTime = new Date();
+  listeners.forEach((l) => l());
+};
+
+// Cross-tab broadcast channel
+let broadcastChannel: BroadcastChannel | null = null;
+if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+  try {
+    broadcastChannel = new BroadcastChannel('colormyles_hrms_sync');
+    broadcastChannel.onmessage = (event) => {
+      if (event.data?.type === 'DATA_CHANGED') {
+        mutation++;
+        emit();
+      }
+    };
+  } catch {
+    broadcastChannel = null;
+  }
+}
 
 // Coalesce bursts of writes into a single refresh.
-export const notifyDataChanged = () => {
-  if (timer) clearTimeout(timer);
-  timer = setTimeout(() => {
+export const notifyDataChanged = (broadcast = true) => {
+  if (debounceTimer) clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => {
     mutation++;
     emit();
+    if (broadcast && broadcastChannel) {
+      try {
+        broadcastChannel.postMessage({ type: 'DATA_CHANGED', timestamp: Date.now() });
+      } catch {
+        // ignore channel errors
+      }
+    }
   }, 250);
 };
 
-if (typeof document !== 'undefined') {
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && Date.now() - lastFocusBump > 60_000) {
-      lastFocusBump = Date.now();
+// Check version against backend API
+const checkServerRevision = async () => {
+  try {
+    const token = typeof localStorage !== 'undefined' ? localStorage.getItem(TOKEN_STORAGE_KEY) : null;
+    if (!token) return;
+
+    const res = await fetch('/api/realtime/version', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return;
+    const json = await res.json();
+    const serverRev = json?.data?.revision;
+    if (typeof serverRev === 'number' && serverRev > currentKnownRevision) {
+      currentKnownRevision = serverRev;
+      notifyDataChanged(false);
+    }
+  } catch {
+    // network blip, ignore
+  }
+};
+
+// Connect to Server-Sent Events (SSE) for instant cross-user / cross-device updates
+export const initRealtimeSync = () => {
+  if (typeof window === 'undefined') return;
+  if (eventSource && eventSource.readyState !== EventSource.CLOSED) return;
+
+  const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+  if (!token) return;
+
+  try {
+    const url = `/api/realtime/stream?token=${encodeURIComponent(token)}`;
+    eventSource = new EventSource(url);
+
+    eventSource.addEventListener('init', (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data?.revision) {
+          currentKnownRevision = Math.max(currentKnownRevision, data.revision);
+        }
+      } catch {
+        // ignore parse error
+      }
+    });
+
+    eventSource.addEventListener('change', (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data?.revision && data.revision > currentKnownRevision) {
+          currentKnownRevision = data.revision;
+          notifyDataChanged(false);
+        }
+      } catch {
+        // ignore parse error
+      }
+    });
+
+    eventSource.onopen = () => {
+      reconnectAttempts = 0;
+      // Stop fallback polling when SSE is active
+      if (fallbackPollTimer) {
+        clearInterval(fallbackPollTimer);
+        fallbackPollTimer = undefined;
+      }
+    };
+
+    eventSource.onerror = () => {
+      if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+      }
+
+      // Start fallback poll while disconnected
+      if (!fallbackPollTimer) {
+        fallbackPollTimer = setInterval(checkServerRevision, 25000);
+      }
+
+      // Exponential backoff reconnect
+      reconnectAttempts++;
+      const delay = Math.min(30000, 2000 * Math.pow(1.5, reconnectAttempts));
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(() => {
+        initRealtimeSync();
+      }, delay);
+    };
+  } catch {
+    // SSE not supported or network error; fallback poll
+    if (!fallbackPollTimer) {
+      fallbackPollTimer = setInterval(checkServerRevision, 25000);
+    }
+  }
+};
+
+export const disconnectRealtimeSync = () => {
+  if (eventSource) {
+    eventSource.close();
+    eventSource = null;
+  }
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = undefined;
+  }
+  if (fallbackPollTimer) {
+    clearInterval(fallbackPollTimer);
+    fallbackPollTimer = undefined;
+  }
+};
+
+// Tab visibility & Window focus refresh
+if (typeof window !== 'undefined') {
+  const onFocusOrVisible = () => {
+    const now = Date.now();
+    // Throttle to once every 5 seconds
+    if (now - lastFocusCheck > 5000) {
+      lastFocusCheck = now;
       focus++;
       emit();
+      void checkServerRevision();
     }
+  };
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') onFocusOrVisible();
   });
+  window.addEventListener('focus', onFocusOrVisible);
 }
 
 const subscribe = (cb: () => void) => {
@@ -41,9 +192,16 @@ const subscribe = (cb: () => void) => {
   };
 };
 
-/** Changes after any write anywhere, and after returning to a stale tab. */
+/** Changes after any write anywhere, cross-user SSE event, cross-tab broadcast, or returning to tab. */
 export const useDataVersion = (): number =>
   useSyncExternalStore(subscribe, () => mutation + focus);
 
 /** Changes only after a write — for screens with unsaved drafts. */
 export const useMutationVersion = (): number => useSyncExternalStore(subscribe, () => mutation);
+
+/** Returns timestamp of when data was last refreshed. */
+export const getLastUpdatedTime = (): Date => lastUpdatedTime;
+
+/** Subscribes to the last updated timestamp so components can render honest last-refreshed badges. */
+export const useLastUpdatedTime = (): Date =>
+  useSyncExternalStore(subscribe, () => lastUpdatedTime);

@@ -28,8 +28,11 @@ export const AttendanceAnalyticsCharts: React.FC<AttendanceAnalyticsChartsProps>
   const present = stats?.presentCount ?? 0;
   const absent = stats?.absentCount ?? 0;
   const halfDay = stats?.halfDayCount ?? 0;
+  // Same basis as the headline attendance rate (and the backend): people expected to work, i.e. the roster less weekly offs,
+  // holidays and paid leave. Using the whole roster here would make the slices disagree with the percentage in the middle.
+  const expected = Math.max(0, totalWorkforce - (stats?.weeklyOffCount ?? 0) - (stats?.leaveCount ?? 0));
 
-  const share = (n: number) => (totalWorkforce > 0 ? Math.round((n / totalWorkforce) * 100) : 0);
+  const share = (n: number) => (expected > 0 ? Math.round((n / expected) * 100) : 0);
   const presentPct = share(present);
   const absentPct = share(absent);
   const halfDayPct = share(halfDay);
@@ -186,8 +189,8 @@ export const AttendanceAnalyticsCharts: React.FC<AttendanceAnalyticsChartsProps>
 
             <p className="text-[11px] text-slate-500 font-medium mt-3 text-center">
               {activeSourceId && activeSourceId !== 'all'
-                ? `${activeSourceName || 'Selected Location'} • ${present} Present of ${totalWorkforce} Enrolled`
-                : `Consolidated Live Ratio across all 3 locations (${present} Present / ${totalWorkforce} Total)`}
+                ? `${activeSourceName || 'Selected Location'} • ${present} Present of ${expected} expected (${totalWorkforce} enrolled)`
+                : `Consolidated Live Ratio across all locations (${present} Present of ${expected} expected, ${totalWorkforce} enrolled)`}
             </p>
           </div>
 

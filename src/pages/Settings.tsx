@@ -3,16 +3,13 @@ import {
   Settings as SettingsIcon,
   ShieldCheck,
   Clock,
-  Calendar,
   RefreshCw,
   Building2,
   Save,
   Plus,
   Trash2,
-  CheckCircle2,
   Play,
   Pause,
-  Timer,
   CalendarDays,
   Check,
   Lock,
@@ -22,10 +19,12 @@ import {
 import { api } from '../services/api';
 import { AttendanceSource, HRMSPolicySettings, SchedulerStatus, PayrollRunStatus, PolicyUpdate, DAY_NAMES, DayName, Site } from '../types';
 import { errorMessage } from '../lib/apiError';
+import { useDataVersion, useLastUpdatedTime } from '../services/dataSync';
 import { istMonth, formatBusinessDate, formatInstantIst } from '../lib/businessDate';
 import { useAuth } from '../context/AuthContext';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { PayrollCloseReviewModal } from '../components/settings/PayrollCloseReviewModal';
+import { ShiftFields } from '../components/settings/ShiftEditor';
 
 interface SettingsPageProps {
   sources: AttendanceSource[];
@@ -35,6 +34,8 @@ const currentMonthKey = () => istMonth();
 
 export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
   const { isSuperAdmin } = useAuth();
+  const dataVersion = useDataVersion();
+  const lastUpdated = useLastUpdatedTime();
   const [pageError, setPageError] = useState<string | null>(null);
   const [sites, setSites] = useState<Site[]>([]);
   const [siteDrafts, setSiteDrafts] = useState<Record<string, { lat: string; lng: string; radiusM: string }>>({});
@@ -80,8 +81,10 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
   };
 
   useEffect(() => {
-    loadSettingsData();
-  }, []);
+    if (!isSaving) {
+      loadSettingsData();
+    }
+  }, [dataVersion]);
 
   const loadPayrollRunData = async (month: string) => {
     setIsPayrollLoading(true);
@@ -135,8 +138,8 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
     setIsSaving(true);
     try {
       const payload: PolicyUpdate = {
-        shift: policy.shift, overtime: policy.overtime, offDayWork: policy.offDayWork, leaves: policy.leaves,
-        weeklyOffDays: policy.weeklyOffDays, scheduler: policy.scheduler, ess: policy.ess,
+        shift: policy.shift, shifts: policy.shifts, overtime: policy.overtime, offDayWork: policy.offDayWork, leaves: policy.leaves,
+        weeklyOffDays: policy.weeklyOffDays, scheduler: policy.scheduler, ess: policy.ess, ...(policy.statutory?.pf ? { statutory: policy.statutory } : {}),
       };
       const updated = await api.updatePolicySettings(payload);
       setPolicy(updated);
@@ -294,122 +297,46 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
       {/* TAB 1: SHIFTS & GRACE RULES */}
       {activeTab === 'policy' && policy && (
         <form onSubmit={handleSavePolicy} className="space-y-6">
-          <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-card space-y-5">
-            <div>
-              <h3 className="text-sm font-heading font-bold text-slate-900">Shift Timing & Attendance Thresholds</h3>
-              <p className="text-xs text-slate-500">Configure standard operating shift, grace window, and half-day limits</p>
-              <p className="mt-2 text-[11px] font-semibold text-brand-700 bg-brand-50 border border-brand-100 rounded-lg px-3 py-2">
-                These settings apply globally: to every employee and to every attendance, dashboard, timesheet, portal, report, export and payroll
-                calculation from the moment you save (policy v{policy.version}). Months that are already closed keep the policy they were closed under.
-              </p>
+          {/* Shifts */}
+          <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-card space-y-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-2">
+                <h3 className="text-sm font-heading font-bold text-slate-900">Shifts</h3>
+                <p className="text-xs text-slate-500">
+                  A shift is its working hours plus its overtime hours. Everyone is on the default shift unless you pick another shift in their profile.
+                  Overtime is paid to people who have OT switched on (Employees page), worked out from their punch out.
+                </p>
+                <p className="text-[11px] font-semibold text-brand-700 bg-brand-50 border border-brand-100 rounded-lg px-3 py-2">
+                  Changes apply to every screen and to payroll from the moment you save (policy v{policy.version}). Months that are already closed keep the policy they were closed under.
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={policy.shifts.length >= 10}
+                onClick={() => setPolicy({
+                  ...policy,
+                  shifts: [...policy.shifts, { ...policy.shift, shiftName: `Shift ${policy.shifts.length + 1}`, otWindows: [] }],
+                })}
+                className="shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-brand-500 text-white hover:bg-brand-600 disabled:opacity-40"
+              >
+                <Plus className="w-4 h-4" /> Add shift
+              </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">Shift Name</label>
-                <input
-                  type="text"
-                  value={policy.shift.shiftName}
-                  onChange={(e) => setPolicy({
-                    ...policy,
-                    shift: { ...policy.shift, shiftName: e.target.value }
-                  })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">Grace Period (Minutes)</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="60"
-                  value={policy.shift.gracePeriodMinutes}
-                  onChange={(e) => setPolicy({
-                    ...policy,
-                    shift: { ...policy.shift, gracePeriodMinutes: Number(e.target.value) }
-                  })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
-                />
-                <span className="text-[10px] text-slate-400 mt-1 block">
-                  Punches after {policy.derived?.lateAfter ?? '—'} (shift start + grace) are flagged as Late In
-                </span>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">Shift Start Time</label>
-                <input
-                  type="time"
-                  value={policy.shift.startTime}
-                  onChange={(e) => setPolicy({
-                    ...policy,
-                    shift: { ...policy.shift, startTime: e.target.value }
-                  })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">Shift End Time</label>
-                <input
-                  type="time"
-                  value={policy.shift.endTime}
-                  onChange={(e) => setPolicy({
-                    ...policy,
-                    shift: { ...policy.shift, endTime: e.target.value }
-                  })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">Early Checkout Full-Day Cutoff</label>
-                <input
-                  type="time"
-                  value={policy.shift.minCheckoutForFullDay || ''}
-                  onChange={(e) => setPolicy({
-                    ...policy,
-                    shift: { ...policy.shift, minCheckoutForFullDay: e.target.value }
-                  })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
-                />
-                <span className="text-[10px] text-slate-400 mt-1 block">{policy.shift.minCheckoutForFullDay ? `Checkout at or after ${policy.shift.minCheckoutForFullDay} (with at least the half-day hours) is credited as a full day` : 'Not set: only the full-day hours threshold applies'}</span>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">Half-Day Threshold (Minutes)</label>
-                <input
-                  type="number"
-                  min="60"
-                  max="480"
-                  step="30"
-                  value={policy.shift.halfDayThresholdMinutes}
-                  onChange={(e) => setPolicy({
-                    ...policy,
-                    shift: { ...policy.shift, halfDayThresholdMinutes: Number(e.target.value) }
-                  })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
-                />
-                <span className="text-[10px] text-slate-400 mt-1 block">Working &lt; {policy.shift.halfDayThresholdMinutes / 60}h is Absent; &ge; {policy.shift.halfDayThresholdMinutes / 60}h is Half-Day (P/2)</span>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">Full-Day Threshold (Minutes)</label>
-                <input
-                  type="number"
-                  min="240"
-                  max="600"
-                  step="30"
-                  value={policy.shift.fullDayThresholdMinutes}
-                  onChange={(e) => setPolicy({
-                    ...policy,
-                    shift: { ...policy.shift, fullDayThresholdMinutes: Number(e.target.value) }
-                  })}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
-                />
-                <span className="text-[10px] text-slate-400 mt-1 block">Working {policy.shift.fullDayThresholdMinutes / 60}+ hours marks Full Present (P)</span>
-              </div>
-            </div>
+            <ShiftFields
+              isDefault
+              shift={policy.shift}
+              lateAfter={policy.derived?.lateAfter}
+              onChange={(next) => setPolicy({ ...policy, shift: next })}
+            />
+            {policy.shifts.map((s, i) => (
+              <ShiftFields
+                key={i}
+                shift={s}
+                onChange={(next) => setPolicy({ ...policy, shifts: policy.shifts.map((x, j) => (j === i ? next : x)) })}
+                onRemove={() => setPolicy({ ...policy, shifts: policy.shifts.filter((_, j) => j !== i) })}
+              />
+            ))}
           </div>
 
           {/* Overtime Policy */}
@@ -479,8 +406,11 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
             </div>
 
             <div>
-              <h3 className="text-sm font-heading font-bold text-slate-900">Overtime (OT) Policy</h3>
-              <p className="text-xs text-slate-500">Auto-calculate overtime hours for payroll processing</p>
+              <h3 className="text-sm font-heading font-bold text-slate-900">Overtime (OT) Pay</h3>
+              <p className="text-xs text-slate-500">
+                Overtime is the time between a person&apos;s first and last punch that falls inside their shift&apos;s overtime hours (set in Shifts above), for people who have OT switched on.
+                It is added up each month and paid automatically. HR can still change an employee&apos;s hours in the OT Calculator.
+              </p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -496,33 +426,12 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                   className="w-4 h-4 text-brand-600 rounded border-slate-300 focus:ring-brand-500 cursor-pointer"
                 />
                 <label htmlFor="otEnabled" className="text-xs font-bold text-slate-800 font-heading cursor-pointer">
-                  Enable Overtime Calculation
+                  Pay overtime
                 </label>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">Overtime Starts After (Hours)</label>
-                <div className="w-full px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-700">
-                  {(() => {
-                    if (policy.derived?.standardDayHours) return `${policy.derived.standardDayHours}h`;
-                    const s = policy.shift?.startTime || '09:00';
-                    const e = policy.shift?.endTime || '17:30';
-                    const [sh, sm] = s.split(':').map(Number);
-                    const [eh, em] = e.split(':').map(Number);
-                    const startMin = (sh || 0) * 60 + (sm || 0);
-                    let endMin = (eh || 0) * 60 + (em || 0);
-                    if (endMin < startMin) endMin += 1440;
-                    const hrs = Math.round(((endMin - startMin) / 60) * 10) / 10;
-                    return `${hrs}h`;
-                  })()}
-                </div>
-                <span className="text-[10px] text-slate-400 mt-1 block">
-                  Auto-calculated from Shift Start/End time above ({policy.shift.startTime}&ndash;{policy.shift.endTime}) &mdash; change the shift timing to adjust this.
-                </span>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">OT Standard Hours per Day</label>
+                <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">Hours per Day for the OT Hourly Rate</label>
                 <input
                   type="number"
                   min="1"
@@ -539,7 +448,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                   className="w-full px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 focus:ring-2 focus:ring-brand-500 outline-none"
                 />
                 <span className="text-[10px] text-slate-400 mt-1 block">
-                  Global. OT hourly rate = (Basic + DA) / 26 / this value (default 8).
+                  OT hourly rate = (Basic + DA) / 26 / this value (default 8), times the OT multiplier.
                 </span>
               </div>
             </div>
@@ -632,6 +541,111 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
               </div>
             </div>
           </div>
+
+          {/* Provident Fund rules: change here when the law changes */}
+          {policy.statutory?.pf && (
+          <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-card space-y-4">
+            <div>
+              <h3 className="text-sm font-heading font-bold text-slate-900 flex items-center gap-2">
+                <span>Provident Fund (PF) Rules</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                  SuperAdmin Control
+                </span>
+              </h3>
+              <p className="text-xs text-slate-500">
+                These drive every PF figure on payroll and the PF &amp; Deductions page. Rates are a percentage of the PF wages.
+                A change applies to months that are still open; closed months keep the figures they were closed with.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {([
+                { key: 'employeeRatePct', label: 'Employee PF rate (%)', hint: 'The employer pays the same amount', max: 100 },
+                { key: 'epsRatePct', label: 'Employer pension share (%)', hint: 'Part of the employer share that goes to pension; the rest goes to EPF', max: 100 },
+                { key: 'adminRatePct', label: 'Admin charge (%)', hint: 'Employer PF admin charge', max: 10 },
+                { key: 'edliRatePct', label: 'EDLI (%)', hint: 'Employer insurance contribution', max: 10 },
+              ] as const).map((f) => (
+                <div key={f.key}>
+                  <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">{f.label}</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max={f.max}
+                    step="0.01"
+                    value={policy.statutory.pf[f.key]}
+                    onChange={(e) => setPolicy({
+                      ...policy,
+                      statutory: { pf: { ...policy.statutory.pf, [f.key]: e.target.value === '' ? 0 : Number(e.target.value) } },
+                    })}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-1 block">{f.hint}</span>
+                </div>
+              ))}
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">PF wage ceiling</label>
+              <div className="space-y-2">
+                {policy.statutory.pf.ceilings.map((row, idx) => {
+                  const setRow = (patch: Partial<typeof row>) => setPolicy({
+                    ...policy,
+                    statutory: { pf: { ...policy.statutory.pf, ceilings: policy.statutory.pf.ceilings.map((r, i) => (i === idx ? { ...r, ...patch } : r)) } },
+                  });
+                  return (
+                    <div key={idx} className="flex flex-wrap items-center gap-3">
+                      {idx === 0 ? (
+                        <span className="w-40 px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-500">Until the next change</span>
+                      ) : (
+                        <input
+                          type="date"
+                          value={row.from}
+                          onChange={(e) => setRow({ from: e.target.value })}
+                          className="w-40 px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
+                        />
+                      )}
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-slate-500">₹</span>
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={row.ceiling}
+                          onChange={(e) => setRow({ ceiling: e.target.value === '' ? 0 : Number(e.target.value) })}
+                          className="w-32 px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
+                        />
+                      </div>
+                      {idx > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setPolicy({ ...policy, statutory: { pf: { ...policy.statutory.pf, ceilings: policy.statutory.pf.ceilings.filter((_, i) => i !== idx) } } })}
+                          className="p-2 rounded-lg text-rose-500 hover:bg-rose-50"
+                          aria-label="Remove this ceiling"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                onClick={() => setPolicy({
+                  ...policy,
+                  statutory: { pf: { ...policy.statutory.pf, ceilings: [...policy.statutory.pf.ceilings, { from: '', ceiling: policy.statutory.pf.ceilings[policy.statutory.pf.ceilings.length - 1]?.ceiling ?? 15000 }] } },
+                })}
+                className="mt-3 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-1.5"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add a ceiling change</span>
+              </button>
+              <span className="text-[10px] text-slate-400 mt-2 block">
+                A new ceiling applies from its date. If the date falls inside a month, that month is split and each part is prorated over the days of the month.
+              </span>
+            </div>
+          </div>
+          )}
 
           <div className="flex justify-end">
             <button

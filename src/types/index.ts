@@ -319,12 +319,31 @@ export interface ShiftConfig {
   halfDayThresholdMinutes: number;
   fullDayThresholdMinutes: number;
   minCheckoutForFullDay?: string;
-  breakDurationMinutes: number;
+  /** Overtime hours: only time punched inside these windows is overtime. None = the shift earns no overtime. */
+  otWindows: TimeWindow[];
+}
+
+export interface TimeWindow {
+  start: string;
+  end: string;
+}
+
+/** Provident Fund rules HR can change when the law does. Rates are percentages of the PF wages (12 = 12%). */
+export interface PfPolicy {
+  employeeRatePct: number;
+  /** Part of the employer's share that goes to the pension scheme; the rest goes to the employer's EPF account. */
+  epsRatePct: number;
+  adminRatePct: number;
+  edliRatePct: number;
+  /** PF wage ceiling history, oldest first. The first row is always in force "from the beginning" (1900-01-01). */
+  ceilings: { from: string; ceiling: number }[];
 }
 
 export interface HRMSPolicySettings {
   version: number;
   shift: ShiftConfig;
+  /** Extra named shifts; an employee whose profile shiftName matches one uses it instead of the default shift. */
+  shifts: ShiftConfig[];
   overtime: { enabled: boolean; hoursPerDay: number };
   /** Work on a weekly off and on a paid holiday are separate rules. */
   offDayWork: { weeklyOff: { recognition: 'MANUAL' | 'AUTOMATIC' }; paidHoliday: { recognition: 'MANUAL' | 'AUTOMATIC' } };
@@ -333,13 +352,14 @@ export interface HRMSPolicySettings {
   holidays: CompanyHoliday[];
   scheduler: { enabled: boolean; intervalMinutes: number };
   ess: { geofenceMode: 'ENFORCE' | 'OFF' };
+  statutory: { pf: PfPolicy };
   updatedAt: string;
   /** Computed by the server so no client re-implements shift math. */
-  derived?: { standardDayHours: number; overnightShift: boolean; lateAfter: string };
+  derived?: { overnightShift: boolean; lateAfter: string };
 }
 
 /** Writable subset of the policy (holidays have their own endpoints). */
-export type PolicyUpdate = Partial<Pick<HRMSPolicySettings, 'shift' | 'overtime' | 'offDayWork' | 'leaves' | 'weeklyOffDays' | 'scheduler' | 'ess'>>;
+export type PolicyUpdate = Partial<Pick<HRMSPolicySettings, 'shift' | 'shifts' | 'overtime' | 'offDayWork' | 'leaves' | 'weeklyOffDays' | 'scheduler' | 'ess' | 'statutory'>>;
 
 // ------------------------------------------------------------------ employees
 export type EmployeeStatus = 'active' | 'inactive' | 'resigned';
@@ -352,6 +372,8 @@ export interface EmployeeProfile {
   phone?: string;
   dob?: string;
   doj?: string;
+  /** Last day of employment (YYYY-MM-DD). Payroll treats later days as outside employment, not as absence. */
+  lastWorkingDay?: string;
   department?: string;
   designation?: string;
   location?: string; // siteId
@@ -382,7 +404,6 @@ export interface EmployeeProfile {
 
   otEligible: boolean;
   otMultiplier?: number;
-  otRatePerHour?: number;
 
   bankName?: string;
   bankAccount?: string;
@@ -392,16 +413,27 @@ export interface EmployeeProfile {
   uanNumber?: string;
   esiNumber?: string;
 
+  /** Salary history; the salary fields above mirror the latest revision. Absent = never revised. */
+  salaryRevisions?: SalaryRevision[];
+
   status: EmployeeStatus;
   notes?: string;
   updatedAt?: string;
 }
 
+/** A salary change that takes effect from a month ('0000-00' = applies to every month). */
+export interface SalaryRevision {
+  effectiveFrom: string;
+  values: Record<string, number>;
+  changedBy?: string;
+  changedAt: string;
+}
+
 /** What a client may send when saving a profile (salary fields are INPUTS; the backend derives the rest). */
-export type EmployeeProfileInput = Partial<Pick<EmployeeProfile,
+export type EmployeeProfileInput = { salaryEffectiveFrom?: string } & Partial<Pick<EmployeeProfile,
   | 'name' | 'email' | 'phone' | 'dob' | 'gender' | 'bloodGroup' | 'emergencyContact'
-  | 'doj' | 'department' | 'designation' | 'location' | 'operationsCategory' | 'managerEmpCode' | 'managerName'
-  | 'shiftName' | 'status' | 'otEligible' | 'otMultiplier' | 'otRatePerHour' | 'notes'
+  | 'doj' | 'lastWorkingDay' | 'department' | 'designation' | 'location' | 'operationsCategory' | 'managerEmpCode' | 'managerName'
+  | 'shiftName' | 'status' | 'otEligible' | 'otMultiplier' | 'notes'
   | 'monthlyCtc' | 'basicSalary' | 'da' | 'hra' | 'specialAllowance' | 'otherAllowance'
   | 'employeePf' | 'employerPf' | 'employeeEsic' | 'employerEsic' | 'professionalTax' | 'minimumBonus'
   | 'bankName' | 'bankAccount' | 'ifscCode' | 'panNumber' | 'aadhaarNumber' | 'uanNumber' | 'esiNumber'>>;
@@ -474,10 +506,14 @@ export interface EmployeePayrollSummary {
   onDutyDays: number;
   lopDays: number;
   payableDays: number;
+  /** Elapsed days before the joining date / after the last working day (not absence, not paid). */
+  notEmployedDays?: number;
   weeklyOffs: number;
   holidays: number;
   totalWorkHours: number;
   totalOtHours: number;
+  /** Overtime counted this month in whole minutes. Absent on older rows. */
+  otMinutes?: number;
   lateArrivals: number;
 
   monthlyCtc: number;
@@ -511,6 +547,22 @@ export interface EmployeePayrollSummary {
 
   employerPf: number;
   employerEsic: number;
+  /** Employer PF admin charge and EDLI, and the wages PF / ESI were worked out on. Absent on rows frozen before ruleset 2026.10-4. */
+  employerPfAdmin?: number;
+  employerEdli?: number;
+  /** Employer's 12% split into the pension scheme (8.33%) and the employer's EPF account. Absent on older rows. */
+  employerEps?: number;
+  employerEpf?: number;
+  /** Stretches of the month with a different PF wage ceiling (a single stretch in an ordinary month). Absent on older rows. */
+  pfSegments?: { fromDay: number; toDay: number; days: number; ceiling: number; wages: number }[];
+  pfWages?: number;
+  esiWages?: number;
+  /** Monthly pay items HR types in the OT Calculator. Absent on older rows. */
+  attendanceBonus?: number;
+  incrementAmount?: number;
+  salaryAdvance?: number;
+  otherDeduction?: number;
+  lwfDeduction?: number;
 
   lopDeduction: number;
   pfDeduction: number;
@@ -520,6 +572,15 @@ export interface EmployeePayrollSummary {
   totalDeductions: number;
 
   totalNetSalary: number;
+  /** The month's designed salary structure (full-month contributions inside CTC), not the prorated deductions above. Absent on older rows. */
+  salaryStructure?: {
+    employeePf: number;
+    employerPf: number;
+    employeeEsic: number;
+    employerEsic: number;
+    professionalTax: number;
+    minimumBonus: number;
+  };
   netPayable: number;
   netPayableWords: string;
 
@@ -543,13 +604,18 @@ export interface AttendanceCoverage {
 
 export interface OtAdjustment {
   otHours?: number;
-  totalWorkHours?: number;
   multiplier?: number;
   /** Explicit HR overrides of what attendance recognized; omit to use the resolver's result. */
   weeklyOffWorkDays?: number;
   holidayWorkDays?: number;
   /** @deprecated legacy name for weeklyOffWorkDays. */
   sundayDays?: number;
+  /** Monthly pay items in INR: advance / other deduction / LWF are recovered, attendance bonus / increment are added. */
+  salaryAdvance?: number;
+  otherDeduction?: number;
+  lwf?: number;
+  attendanceBonus?: number;
+  increment?: number;
 }
 export type OtAdjustments = Record<string, OtAdjustment>;
 

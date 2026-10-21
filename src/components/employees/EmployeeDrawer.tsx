@@ -10,6 +10,8 @@ import { DayAdjustmentModal } from '../attendance/DayAdjustmentModal';
 import { formatMinutes, metaFor } from '../../lib/attendanceDisplay';
 import { formatBusinessDay, istMonth } from '../../lib/businessDate';
 import { inr } from '../../lib/utils';
+import { to12h } from '../common/TimeInput';
+import { errorMessage } from '../../lib/apiError';
 
 interface EmployeeDrawerProps {
   isOpen: boolean;
@@ -27,18 +29,23 @@ export const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({ isOpen, onClose,
   const [selectedDay, setSelectedDay] = useState<AttendanceDay | null>(null);
   const [policy, setPolicy] = useState<HRMSPolicySettings | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadIssues, setLoadIssues] = useState<string[]>([]); // parts that failed to load: shown, never silently blanked
   const month = istMonth();
   const dataVersion = useDataVersion();
 
   const load = useCallback(async () => {
     if (!employee?.employeeCode) return;
     setLoading(true);
+    const issues: string[] = [];
+    const part = <T,>(label: string, p: Promise<T>): Promise<T | null> =>
+      p.catch((err) => { issues.push(`${label}: ${errorMessage(err, 'could not be loaded')}`); return null; });
     const [prof, pay, cal, pol] = await Promise.all([
-      api.getEmployeeProfile(employee.employeeCode).catch(() => null),
-      api.getEmployeePayroll(employee.employeeCode, month).catch(() => null),
-      api.getAttendanceCalendar(month, employee.employeeCode).catch(() => null),
-      api.getPolicySettings().catch(() => null),
+      part('Profile', api.getEmployeeProfile(employee.employeeCode)),
+      part('Payroll', api.getEmployeePayroll(employee.employeeCode, month)),
+      part('Attendance', api.getAttendanceCalendar(month, employee.employeeCode)),
+      part('Policy', api.getPolicySettings()),
     ]);
+    setLoadIssues(issues);
     setProfile(prof);
     setPayroll(pay);
     setDays(cal?.days ?? []);
@@ -89,6 +96,12 @@ export const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({ isOpen, onClose,
                 </button>
               </div>
             </div>
+
+            {loadIssues.length > 0 && (
+              <div role="alert" className="mt-3 p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-medium">
+                Some details could not be loaded, so what you see may be incomplete: {loadIssues.join(' · ')}
+              </div>
+            )}
 
             <div className="flex items-center gap-2 mt-4">
               <button type="button" onClick={() => setIsPayslipOpen(true)} className="flex-1 py-2 px-3 bg-[#011638] hover:bg-[#022359] text-white text-xs font-bold rounded-xl shadow-xs flex items-center justify-center gap-2 transition">
@@ -205,7 +218,7 @@ export const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({ isOpen, onClose,
                       <span className="text-xs font-bold text-brand-600 bg-sky-100/70 px-2 py-0.5 rounded-md">{policy.shift.shiftName}</span>
                     </div>
                     <div className="grid grid-cols-2 gap-3 text-xs">
-                      <div className="bg-white p-2.5 rounded-xl border border-slate-100"><span className="text-[10px] text-slate-400 block font-bold">Standard Timing</span><span className="font-extrabold text-slate-800">{policy.shift.startTime} – {policy.shift.endTime}</span></div>
+                      <div className="bg-white p-2.5 rounded-xl border border-slate-100"><span className="text-[10px] text-slate-400 block font-bold">Standard Timing</span><span className="font-extrabold text-slate-800">{to12h(policy.shift.startTime)} – {to12h(policy.shift.endTime)}</span></div>
                       <div className="bg-white p-2.5 rounded-xl border border-slate-100"><span className="text-[10px] text-slate-400 block font-bold">Grace Period</span><span className="font-extrabold text-slate-800">{policy.shift.gracePeriodMinutes} minutes</span></div>
                     </div>
                   </div>

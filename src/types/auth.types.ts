@@ -1,4 +1,5 @@
-export type UserRole = 'SUPER_ADMIN' | 'FOUNDER' | 'EMPLOYEE';
+/** Must equal the backend USER_ROLES (checked by the cross-repo contract test). */
+export type UserRole = 'SUPER_ADMIN' | 'FOUNDER' | 'HR' | 'EMPLOYEE';
 
 /** Canonical user as returned by login, /auth/me and user management. */
 export interface User {
@@ -20,7 +21,7 @@ export interface CreateUserInput {
   email: string;
   name?: string;
   password: string;
-  role: 'FOUNDER' | 'EMPLOYEE';
+  role: 'FOUNDER' | 'HR' | 'EMPLOYEE';
   empCode?: string;
 }
 
@@ -33,5 +34,6 @@ export interface AuthContextType {
   logout: () => Promise<void>;
   isSuperAdmin: boolean;
   isFounder: boolean;
+  isHr: boolean;
   isEmployee: boolean;
 }

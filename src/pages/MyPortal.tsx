@@ -395,26 +395,70 @@ export const MyPortal: React.FC = () => {
                 <table className="w-full text-left text-xs border-collapse">
                   <thead><tr className="bg-slate-900 text-white uppercase text-[10px] tracking-wider font-extrabold"><th className="py-3 px-4">PARTICULARS</th><th className="py-3 px-4 text-right w-44">Per Annum (₹)</th><th className="py-3 px-4 text-right w-44">Per Month (₹)</th></tr></thead>
                   <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-                    {([
-                      ['Basic (A)', payroll.basicSalary, 'font-semibold'],
-                      ['Dearness Allowance', payroll.da, 'font-semibold'],
-                      ['HRA (C1)', payroll.hra, 'font-semibold'],
-                      ['Special Allowance (C2)', payroll.allowances, 'font-semibold'],
-                      ['Other Allowance', payroll.otherAllowance, 'font-semibold'],
-                      ['Gross Salary (D)', payroll.grossSalary, 'bg-slate-100 font-extrabold'],
-                      ['Employee PF (E)', payroll.pfDeduction, 'text-rose-700'],
-                      ['Employee ESIC (F)', payroll.esiDeduction, 'text-slate-600'],
-                      ['Total Net Salary (G)', payroll.totalNetSalary, 'bg-sky-50/80 font-extrabold text-sky-950'],
-                      ['Employer PF (H)', payroll.employerPf, 'text-indigo-700'],
-                      ['Employer ESIC (I)', payroll.employerEsic, 'text-slate-600'],
-                      ['Professional Tax (J)', payroll.ptDeduction, 'text-slate-700'],
-                      ['Total Gross CTC (L)', payroll.monthlyCtc, 'bg-slate-900 text-white font-extrabold'],
-                    ] as const).filter(([label, amount]) => amount > 0 || label.startsWith('Gross Salary') || label.startsWith('Total')).map(([label, amount, style]) => (
+                    {(() => {
+                      // Annexure K is the salary STRUCTURE for a full month, so every row is the designed figure. This month's actual
+                      // (prorated) PF / ESIC / PT are shown in "What is being cut from your pay" below, never mixed into this table.
+                      const st = payroll.salaryStructure;
+                      const pick = (fromStructure: number | undefined, fromProfile: number | undefined) => fromStructure ?? fromProfile ?? 0;
+                      return ([
+                        ['Basic (A)', payroll.basicSalary, 'font-semibold'],
+                        ['Dearness Allowance', payroll.da, 'font-semibold'],
+                        ['HRA (C1)', payroll.hra, 'font-semibold'],
+                        ['Special Allowance (C2)', payroll.allowances, 'font-semibold'],
+                        ['Other Allowance', payroll.otherAllowance, 'font-semibold'],
+                        ['Gross Salary (D)', payroll.grossSalary, 'bg-slate-100 font-extrabold'],
+                        ['Employee PF (E)', pick(st?.employeePf, profile.employeePf), 'text-rose-700'],
+                        ['Employee ESIC (F)', pick(st?.employeeEsic, profile.employeeEsic), 'text-slate-600'],
+                        ['Total Net Salary (G)', payroll.totalNetSalary, 'bg-sky-50/80 font-extrabold text-sky-950'],
+                        ['Employer PF (H)', pick(st?.employerPf, profile.employerPf), 'text-indigo-700'],
+                        ['Employer ESIC (I)', pick(st?.employerEsic, profile.employerEsic), 'text-slate-600'],
+                        ['Professional Tax (J)', pick(st?.professionalTax, profile.professionalTax), 'text-slate-700'],
+                        ['Minimum Bonus (K)', pick(st?.minimumBonus, profile.minimumBonus), 'text-slate-700'],
+                        ['Total Gross CTC (L)', payroll.monthlyCtc, 'bg-slate-900 text-white font-extrabold'],
+                      ] as const);
+                    })().filter(([label, amount]) => amount > 0 || label.startsWith('Gross Salary') || label.startsWith('Total')).map(([label, amount, style]) => (
                       <tr key={label} className={style}><td className="py-2.5 px-4">{label}</td><td className="py-2.5 px-4 text-right font-mono">{inr(amount * 12)}</td><td className="py-2.5 px-4 text-right font-mono font-bold">{inr(amount)}</td></tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+              {(() => {
+                // What is actually taken out of this month's pay, with the reason the payroll engine gave for each line.
+                const CUTS = ['LOP', 'PF', 'ESI', 'PT', 'ADVANCE', 'OTHER_DEDUCTION', 'LWF'];
+                const cuts = (payroll.payslip?.deductions ?? []).filter((l) => CUTS.includes(l.code) && l.amount > 0);
+                const total = cuts.reduce((a, l) => a + l.amount, 0);
+                return (
+                  <div className="rounded-2xl border border-rose-200 bg-rose-50/40 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-rose-200 flex items-center justify-between gap-3">
+                      <div>
+                        <span className="text-[10px] uppercase font-bold tracking-wider text-rose-800 block">What is being cut from your pay</span>
+                        <span className="text-[11px] text-rose-700">{payroll.isProvisional ? 'So far this month: the final figures come when payroll is closed.' : 'For this month.'}</span>
+                      </div>
+                      <span className="text-lg font-heading font-extrabold font-mono text-rose-800">{cuts.length ? `-${inr(total)}` : inr(0)}</span>
+                    </div>
+                    {cuts.length === 0 ? (
+                      <p className="px-4 py-3 text-xs text-slate-500">Nothing is being cut from your pay this month.</p>
+                    ) : (
+                      <ul className="divide-y divide-rose-100">
+                        {cuts.map((l) => (
+                          <li key={l.code} className="px-4 py-2.5 flex items-start justify-between gap-4 text-xs">
+                            <div>
+                              <span className="font-bold text-slate-800">{l.label}</span>
+                              {l.note && <span className="block text-[11px] text-slate-500">{l.note}</span>}
+                            </div>
+                            <span className="font-mono font-bold text-rose-700 whitespace-nowrap">-{inr(l.amount)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {(payroll.employerPf ?? 0) > 0 && (
+                      <p className="px-4 py-2.5 text-[11px] text-indigo-800 bg-indigo-50 border-t border-indigo-100">
+                        Your employer also puts {inr(payroll.employerPf)} into your provident fund on top of your own {inr(payroll.pfDeduction)}. This is not taken from your pay.
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
               <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="space-y-0.5">
                   <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider">{payroll.isProvisional ? 'Net pay so far this month' : 'Net pay for the month'}</span>

@@ -20,10 +20,17 @@ import { SyncHistory } from './pages/SyncHistory';
 import { Settings } from './pages/Settings';
 import { UserManagement } from './pages/UserManagement';
 import { OTCalculator } from './pages/OTCalculator';
+import { PfDeductions } from './pages/PfDeductions';
 import { Approvals } from './pages/Approvals';
 
 import { api } from './services/api';
+import { useDataVersion } from './services/dataSync';
 import { AttendanceSource } from './types';
+import type { UserRole } from './types/auth.types';
+import { errorMessage } from './lib/apiError';
+
+// Roles the backend lets run day-to-day HR operations (access.HR_OR_ABOVE). Settings, sync and user management stay narrower.
+const HR_OR_ABOVE: UserRole[] = ['SUPER_ADMIN', 'FOUNDER', 'HR'];
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -36,8 +43,10 @@ const queryClient = new QueryClient({
 
 const MainLayout: React.FC = () => {
   const { isEmployee } = useAuth();
+  const dataVersion = useDataVersion();
   // Sources come from the backend only (no invented defaults).
   const [sources, setSources] = useState<AttendanceSource[]>([]);
+  const [sourcesError, setSourcesError] = useState<string | null>(null);
 
   const [activeSourceId, setActiveSourceId] = useState<string>('all');
   const [isSyncModalOpen, setIsSyncModalOpen] = useState<boolean>(false);
@@ -47,14 +56,15 @@ const MainLayout: React.FC = () => {
   const loadSources = async () => {
     try {
       setSources(await api.getSources());
+      setSourcesError(null);
     } catch (err) {
-      console.warn('Could not load sources:', err);
+      setSourcesError(errorMessage(err, 'Could not load the biometric sources.'));
     }
   };
 
   useEffect(() => {
     loadSources();
-  }, []);
+  }, [dataVersion]);
 
   const handleOpenSync = (targetSourceId?: string) => {
     if (targetSourceId && targetSourceId !== 'all') {
@@ -90,6 +100,12 @@ const MainLayout: React.FC = () => {
         />
 
         <main className="flex-1 p-3.5 sm:p-5 md:p-6 lg:p-8 w-full max-w-[1920px] mx-auto transition-all">
+          {sourcesError && (
+            <div role="alert" className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center justify-between gap-3">
+              <span>{sourcesError} Location filters may be incomplete.</span>
+              <button type="button" onClick={loadSources} className="px-2.5 py-1 rounded-lg bg-white border border-rose-200 hover:bg-rose-100">Retry</button>
+            </div>
+          )}
           <Routes>
             {/* Root route: Auto-switches based on Role */}
             <Route
@@ -131,7 +147,7 @@ const MainLayout: React.FC = () => {
             <Route
               path="/approvals"
               element={
-                <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'FOUNDER']}>
+                <ProtectedRoute allowedRoles={HR_OR_ABOVE}>
                   <Approvals />
                 </ProtectedRoute>
               }
@@ -139,7 +155,7 @@ const MainLayout: React.FC = () => {
             <Route
               path="/attendance"
               element={
-                <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'FOUNDER']}>
+                <ProtectedRoute allowedRoles={HR_OR_ABOVE}>
                   <Attendance
                     sources={sources}
                     activeSourceId={activeSourceId}
@@ -152,7 +168,7 @@ const MainLayout: React.FC = () => {
             <Route
               path="/raw-swipes"
               element={
-                <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'FOUNDER']}>
+                <ProtectedRoute allowedRoles={HR_OR_ABOVE}>
                   <RawSwipes
                     sources={sources}
                     activeSourceId={activeSourceId}
@@ -165,7 +181,7 @@ const MainLayout: React.FC = () => {
             <Route
               path="/employees"
               element={
-                <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'FOUNDER']}>
+                <ProtectedRoute allowedRoles={HR_OR_ABOVE}>
                   <Employees
                     sources={sources}
                     activeSourceId={activeSourceId}
@@ -178,8 +194,21 @@ const MainLayout: React.FC = () => {
             <Route
               path="/ot-calculator"
               element={
-                <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'FOUNDER']}>
+                <ProtectedRoute allowedRoles={HR_OR_ABOVE}>
                   <OTCalculator
+                    sources={sources}
+                    activeSourceId={activeSourceId}
+                    onSelectSource={setActiveSourceId}
+                    onOpenSync={handleOpenSync}
+                  />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/pf-deductions"
+              element={
+                <ProtectedRoute allowedRoles={HR_OR_ABOVE}>
+                  <PfDeductions
                     sources={sources}
                     activeSourceId={activeSourceId}
                     onSelectSource={setActiveSourceId}

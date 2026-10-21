@@ -15,15 +15,17 @@ import {
   MessageSquare,
   ShieldCheck,
   Building2,
-  FileText
+  FileText,
+  RefreshCw
 } from 'lucide-react';
 import { api } from '../services/api';
-import { useDataVersion } from '../services/dataSync';
+import { useDataVersion, useLastUpdatedTime } from '../services/dataSync';
 import { AttendanceRegularizationRequest, EmployeeProfile } from '../types';
 import { errorMessage } from '../lib/apiError';
 import { formatBusinessDate } from '../lib/businessDate';
 
 export const Approvals: React.FC = () => {
+  const lastUpdated = useLastUpdatedTime();
   const [requests, setRequests] = useState<AttendanceRegularizationRequest[]>([]);
   const [employees, setEmployees] = useState<EmployeeProfile[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -150,6 +152,24 @@ export const Approvals: React.FC = () => {
               Review and 1-click approve employee leave applications, missed punch regularizations, and on-duty requests.
             </p>
           </div>
+        </div>
+
+        <div className="flex items-center gap-2.5 shrink-0">
+          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200/80 text-[11px] font-medium text-slate-600 font-mono">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Updated {lastUpdated.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' })} IST</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={loadData}
+            disabled={isLoading}
+            className="p-2.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-brand-500 rounded-xl transition-all shadow-xs flex items-center gap-1.5 text-xs font-semibold"
+            title="Refresh Requests"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-brand-500' : ''}`} />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
         </div>
       </div>
 

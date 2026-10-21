@@ -14,16 +14,21 @@ import {
   Mail,
   Search,
   Filter,
-  Power
+  Power,
+  RefreshCw,
+  Clock
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
+import { useDataVersion, useLastUpdatedTime } from '../services/dataSync';
 import { errorMessage } from '../lib/apiError';
 import type { EmployeeProfile } from '../types';
 import type { User as AppUser, CreateUserInput } from '../types/auth.types';
 
 export const UserManagement: React.FC = () => {
   const { token } = useAuth();
+  const dataVersion = useDataVersion();
+  const lastUpdated = useLastUpdatedTime();
   const [users, setUsers] = useState<AppUser[]>([]);
   const [employeesList, setEmployeesList] = useState<EmployeeProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,7 +42,7 @@ export const UserManagement: React.FC = () => {
   const [newPassword, setNewPassword] = useState('');
 
   // Form state
-  const [formData, setFormData] = useState<{ role: 'FOUNDER' | 'EMPLOYEE'; empCode: string; name: string; email: string; password: string }>({
+  const [formData, setFormData] = useState<{ role: 'FOUNDER' | 'HR' | 'EMPLOYEE'; empCode: string; name: string; email: string; password: string }>({
     role: 'EMPLOYEE',
     empCode: '',
     name: '',
@@ -66,7 +71,7 @@ export const UserManagement: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, [token]);
+  }, [token, dataVersion]);
 
   const handleEmpCodeSelect = (code: string) => {
     const selectedEmp = employeesList.find((e) => e.empCode === code);
@@ -151,6 +156,7 @@ export const UserManagement: React.FC = () => {
 
   const superAdminCount = users.filter((u) => u.role === 'SUPER_ADMIN').length;
   const founderCount = users.filter((u) => u.role === 'FOUNDER').length;
+  const hrCount = users.filter((u) => u.role === 'HR').length;
   const employeeCount = users.filter((u) => u.role === 'EMPLOYEE').length;
 
   return (
@@ -192,13 +198,30 @@ export const UserManagement: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={() => setIsCreateModalOpen(true)}
-          className="px-5 py-3 bg-white text-[#011638] hover:bg-sky-50 text-xs font-bold rounded-2xl transition-all shadow-lg flex items-center gap-2 active:scale-95 shrink-0"
-        >
-          <UserPlus className="w-4 h-4 text-[#1184b0]" />
-          <span>Create New Account</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 border border-white/20 text-[11px] font-medium text-sky-100">
+            <Clock className="w-3.5 h-3.5 text-sky-300" />
+            <span>Updated {lastUpdated.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' })} IST</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={loadData}
+            disabled={loading}
+            className="p-3 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-2xl transition-all shadow-md active:scale-95 shrink-0"
+            title="Refresh Users"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="px-5 py-3 bg-white text-[#011638] hover:bg-sky-50 text-xs font-bold rounded-2xl transition-all shadow-lg flex items-center gap-2 active:scale-95 shrink-0"
+          >
+            <UserPlus className="w-4 h-4 text-[#1184b0]" />
+            <span>Create New Account</span>
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -219,7 +242,7 @@ export const UserManagement: React.FC = () => {
           <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block mb-1 flex items-center gap-1">
             <Briefcase className="w-3 h-3" /> Founders
           </span>
-          <span className="text-2xl font-extrabold text-slate-900 font-heading">{founderCount} Active</span>
+          <span className="text-2xl font-extrabold text-slate-900 font-heading">{founderCount} Active{hrCount ? ` · ${hrCount} HR` : ''}</span>
         </div>
 
         <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs">
@@ -257,6 +280,7 @@ export const UserManagement: React.FC = () => {
               <option value="ALL">All Roles</option>
               <option value="SUPER_ADMIN">Super Admin Only</option>
               <option value="FOUNDER">Founders Only</option>
+              <option value="HR">HR Only</option>
               <option value="EMPLOYEE">Employees Only</option>
             </select>
           </div>
@@ -301,10 +325,13 @@ export const UserManagement: React.FC = () => {
                         ? 'bg-[#1184b0]/15 text-[#1184b0] border border-[#1184b0]/30'
                         : u.role === 'FOUNDER'
                         ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                        : u.role === 'HR'
+                        ? 'bg-violet-100 text-violet-800 border border-violet-200'
                         : 'bg-sky-100 text-sky-800 border border-sky-200'
                     }`}>
                       {u.role === 'SUPER_ADMIN' && <Crown className="w-3 h-3 text-[#1184b0]" />}
                       {u.role === 'FOUNDER' && <Briefcase className="w-3 h-3 text-emerald-600" />}
+                      {u.role === 'HR' && <Briefcase className="w-3 h-3 text-violet-600" />}
                       {u.role === 'EMPLOYEE' && <User className="w-3 h-3 text-sky-600" />}
                       <span>{u.role}</span>
                     </span>
@@ -378,7 +405,7 @@ export const UserManagement: React.FC = () => {
             <form onSubmit={handleCreateUser} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Account Role</label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
                     onClick={() => setFormData({ ...formData, role: 'EMPLOYEE' })}
@@ -403,6 +430,19 @@ export const UserManagement: React.FC = () => {
                   >
                     <Briefcase className="w-3.5 h-3.5 text-emerald-600" />
                     <span>Founder Account</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, role: 'HR', empCode: '' })}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-2 ${
+                      formData.role === 'HR'
+                        ? 'bg-violet-50 border-violet-500 text-violet-800'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Briefcase className="w-3.5 h-3.5 text-violet-600" />
+                    <span>HR Account</span>
                   </button>
                 </div>
               </div>

@@ -101,6 +101,12 @@ describe('cross-repo contract (runs when the backend checkout sits next to the f
     for (const s of listFrom(f, 'REQUEST_TYPES')) assert.ok(types.includes(`'${s}'`), `frontend RequestType misses ${s}`);
     for (const s of listFrom(f, 'LEAVE_TYPES')) assert.ok(types.includes(`'${s}'`), `frontend LeaveType misses ${s}`);
   });
+  test('user roles are identical (a role missing in the UI would leave that user without a working console)', { skip }, () => {
+    const be = listFrom(path.join(backend, 'modules', 'auth', 'auth.types.ts'), 'USER_ROLES');
+    const fe = fs.readFileSync(path.resolve(process.cwd(), 'src', 'types', 'auth.types.ts'), 'utf-8');
+    const union = [...fe.match(/export type UserRole =([^;]+);/)![1].matchAll(/'([A-Z_]+)'/g)].map((m) => m[1]);
+    assert.deepEqual([...union].sort(), [...be].sort());
+  });
   test('API error codes are identical', { skip }, () => {
     const src = fs.readFileSync(path.join(backend, 'utils', 'apiError.ts'), 'utf-8');
     const be = [...src.match(/export type ApiErrorCode =([^;]+);/)![1].matchAll(/'([A-Z_]+)'/g)].map((m) => m[1]).sort();

@@ -4,6 +4,7 @@ import { EmployeeProfile, EmployeeProfileInput, SalaryBreakdown, Site } from '..
 import { api } from '../../services/api';
 import { errorMessage } from '../../lib/apiError';
 import { inr } from '../../lib/utils';
+import { istMonth, monthLabel } from '../../lib/businessDate';
 
 interface EditEmployeeModalProps {
   isOpen: boolean;
@@ -43,22 +44,32 @@ export const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ isOpen, on
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sites, setSites] = useState<Site[]>([]);
+  const [shiftNames, setShiftNames] = useState<string[]>([]);
   const [form, setForm] = useState<Partial<EmployeeProfile>>({});
   const [ctc, setCtc] = useState<string>('');
   const [overrides, setOverrides] = useState<Partial<Record<SalaryKey, string>>>({});
   const [preview, setPreview] = useState<SalaryBreakdown | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [initialSalaryKey, setInitialSalaryKey] = useState<string>('');
+  const [effectiveFrom, setEffectiveFrom] = useState<string>(istMonth());
+  const [fromBeginning, setFromBeginning] = useState(false);
 
   useEffect(() => {
     if (!isOpen || !empCode) return;
     let alive = true;
     setLoading(true);
     setError(null);
-    Promise.all([api.getEmployeeProfile(empCode), api.getSites().catch(() => [] as Site[])])
-      .then(async ([p, s]) => {
+    setEffectiveFrom(istMonth());
+    setFromBeginning(false);
+    Promise.all([
+      api.getEmployeeProfile(empCode),
+      api.getSites().catch(() => [] as Site[]),
+      api.getPolicySettings().then((pol) => pol.shifts.map((sh) => sh.shiftName)).catch(() => [] as string[]),
+    ])
+      .then(async ([p, s, shifts]) => {
         if (!alive) return;
         setSites(s);
+        setShiftNames(shifts);
         setForm(p);
         setCtc(p.monthlyCtc ? String(p.monthlyCtc) : '');
         // Pre-fill an override only where the stored value differs from what the formula gives for this CTC.
@@ -78,6 +89,8 @@ export const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ isOpen, on
   }, [isOpen, empCode]);
 
   const salaryInputs = useMemo(() => buildSalaryInputs(ctc, overrides), [ctc, overrides]);
+  const salaryChanged = JSON.stringify(salaryInputs) !== initialSalaryKey;
+  const hadSalary = !!form.monthlyCtc;
 
   // Live preview straight from the backend formula (debounced).
   useEffect(() => {
@@ -102,16 +115,19 @@ export const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ isOpen, on
     setError(null);
     try {
       const payload: EmployeeProfileInput = {
-        name: form.name, email: form.email ?? '', phone: form.phone ?? '', dob: form.dob ?? '', doj: form.doj ?? '',
+        name: form.name, email: form.email ?? '', phone: form.phone ?? '', dob: form.dob ?? '', doj: form.doj ?? '', lastWorkingDay: form.lastWorkingDay ?? '',
         gender: form.gender, bloodGroup: form.bloodGroup, emergencyContact: form.emergencyContact,
         department: form.department, designation: form.designation, location: form.location ?? '',
-        operationsCategory: form.operationsCategory, managerEmpCode: form.managerEmpCode ?? '', managerName: form.managerName,
-        status: form.status, otEligible: form.otEligible, otMultiplier: form.otMultiplier, otRatePerHour: form.otRatePerHour, notes: form.notes,
+        operationsCategory: form.operationsCategory, shiftName: form.shiftName ?? '', managerEmpCode: form.managerEmpCode ?? '', managerName: form.managerName,
+        status: form.status, otEligible: form.otEligible, otMultiplier: form.otMultiplier, notes: form.notes,
         bankName: form.bankName, bankAccount: form.bankAccount, ifscCode: form.ifscCode, panNumber: form.panNumber,
         aadhaarNumber: form.aadhaarNumber, uanNumber: form.uanNumber, esiNumber: form.esiNumber,
       };
       // Only send salary inputs when the user actually changed them.
-      if (JSON.stringify(salaryInputs) !== initialSalaryKey) Object.assign(payload, salaryInputs);
+      // A salary change takes effect from a month: earlier months keep the salary they had (closed months are frozen).
+      if (JSON.stringify(salaryInputs) !== initialSalaryKey) {
+        Object.assign(payload, salaryInputs, { salaryEffectiveFrom: fromBeginning ? '0000-00' : effectiveFrom });
+      }
       const updated = await api.updateEmployeeProfile(empCode, payload);
       onSaved(updated);
       onClose();
@@ -172,6 +188,7 @@ export const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ isOpen, on
                 {text('Department', 'department')}
                 {text('Designation', 'designation')}
                 {text('Date of Joining', 'doj', 'date')}
+                {text('Last Working Day', 'lastWorkingDay', 'date')}
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">Work Location</label>
                   <select value={form.location ?? ''} onChange={(e) => set('location', e.target.value || undefined)} className={cls}>
@@ -183,6 +200,14 @@ export const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ isOpen, on
                   <label className="block text-xs font-medium text-slate-700 mb-1">Status</label>
                   <select value={form.status ?? 'active'} onChange={(e) => set('status', e.target.value as EmployeeProfile['status'])} className={cls}>
                     <option value="active">Active</option><option value="inactive">Inactive</option><option value="resigned">Resigned</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Shift</label>
+                  <select value={form.shiftName ?? ''} onChange={(e) => set('shiftName', e.target.value || undefined)} className={cls}>
+                    <option value="">Default shift (set in Settings)</option>
+                    {form.shiftName && !shiftNames.includes(form.shiftName) && <option value={form.shiftName}>{form.shiftName} (not defined in Settings)</option>}
+                    {shiftNames.map((n) => (<option key={n} value={n}>{n}</option>))}
                   </select>
                 </div>
                 {text('Manager Emp Code', 'managerEmpCode')}
@@ -201,6 +226,40 @@ export const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ isOpen, on
                   Enter the CTC and the server derives every component below. Type a value in a field to override it for this employee. Changing the CTC recomputes any component you have not overridden.
                 </p>
               </div>
+              {salaryChanged && hadSalary && (
+                <div className="p-3 rounded-lg bg-sky-50 border border-sky-200 text-xs text-sky-900 space-y-2">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label className="font-semibold">Effective from</label>
+                    <input
+                      type="month" value={effectiveFrom} disabled={fromBeginning}
+                      onChange={(e) => e.target.value && setEffectiveFrom(e.target.value)}
+                      className="px-2 py-1 border border-sky-300 rounded-md bg-white disabled:opacity-50"
+                    />
+                    <label className="flex items-center gap-1.5">
+                      <input type="checkbox" checked={fromBeginning} onChange={(e) => setFromBeginning(e.target.checked)} />
+                      <span>Correction: apply to all earlier months too</span>
+                    </label>
+                  </div>
+                  <p className="text-[11px] text-sky-800">
+                    {fromBeginning
+                      ? 'This replaces the salary for every month that is not already closed.'
+                      : `Months before ${monthLabel(effectiveFrom)} keep their current salary; ${monthLabel(effectiveFrom)} onwards uses the new one. Closed months never change.`}
+                  </p>
+                </div>
+              )}
+              {salaryChanged && !hadSalary && (
+                <p className="text-[11px] text-slate-500">This is the first salary set for this employee, so it applies to every month that is not already closed.</p>
+              )}
+              {!!form.salaryRevisions?.length && (
+                <div className="text-[11px] text-slate-600">
+                  <span className="font-semibold text-slate-700">Salary history: </span>
+                  {[...form.salaryRevisions].sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom)).map((r, i) => (
+                    <span key={r.effectiveFrom + i} className="mr-3">
+                      {r.effectiveFrom === '0000-00' ? 'Until first change' : `From ${monthLabel(r.effectiveFrom)}`}: {inr(Number(r.values.monthlyCtc ?? 0))}
+                    </span>
+                  ))}
+                </div>
+              )}
               {previewError && <p className="text-xs text-rose-600">{previewError}</p>}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {SALARY_KEYS.map((k) => (
@@ -238,12 +297,8 @@ export const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ isOpen, on
                   <input type="checkbox" checked={form.otEligible !== false} onChange={(e) => set('otEligible', e.target.checked)} /> Eligible for overtime pay
                 </label>
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">OT multiplier (x hourly wage)</label>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">OT multiplier (x hourly wage, blank = company default)</label>
                   <input type="number" min={0} step="0.25" value={form.otMultiplier ?? ''} onChange={(e) => set('otMultiplier', e.target.value === '' ? undefined : Number(e.target.value))} className={cls} placeholder="default 2" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Fixed OT rate (₹ / hour)</label>
-                  <input type="number" min={0} value={form.otRatePerHour ?? ''} onChange={(e) => set('otRatePerHour', e.target.value === '' ? undefined : Number(e.target.value))} className={cls} placeholder="optional, overrides multiplier" />
                 </div>
               </div>
             </div>

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { User, AuthContextType } from '../types/auth.types';
 import { api, TOKEN_STORAGE_KEY, USER_STORAGE_KEY } from '../services/api';
 import { normalizeError } from '../lib/apiError';
+import { initRealtimeSync, disconnectRealtimeSync, notifyDataChanged } from '../services/dataSync';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -25,6 +26,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   const clearSession = useCallback(() => {
+    disconnectRealtimeSync();
     setToken(null);
     setUser(null);
     writeStorage(TOKEN_STORAGE_KEY, null);
@@ -42,6 +44,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (!cancelled) {
             setUser(current);
             writeStorage(USER_STORAGE_KEY, JSON.stringify(current));
+            initRealtimeSync();
           }
         } catch (err) {
           const n = normalizeError(err);
@@ -60,11 +63,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(data.user);
     writeStorage(TOKEN_STORAGE_KEY, data.token);
     writeStorage(USER_STORAGE_KEY, JSON.stringify(data.user));
+    initRealtimeSync();
+    notifyDataChanged();
   };
 
   const logout = async () => {
     try { await api.logout(); } catch { /* the token may already be invalid; still clear locally */ }
     clearSession();
+    notifyDataChanged();
   };
 
   const value: AuthContextType = {
@@ -76,6 +82,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     logout,
     isSuperAdmin: user?.role === 'SUPER_ADMIN',
     isFounder: user?.role === 'FOUNDER',
+    isHr: user?.role === 'HR',
     isEmployee: user?.role === 'EMPLOYEE',
   };
 

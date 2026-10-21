@@ -8,7 +8,7 @@ import { AttendanceTable } from '../components/attendance/AttendanceTable';
 import { AttendanceFilterBar } from '../components/attendance/AttendanceFilterBar';
 import { ErrorAlert } from '../components/common/ErrorAlert';
 import { api } from '../services/api';
-import { useDataVersion } from '../services/dataSync';
+import { useDataVersion, useLastUpdatedTime } from '../services/dataSync';
 import { errorMessage } from '../lib/apiError';
 import { datesBetween, istToday } from '../lib/businessDate';
 import { formatMinutes } from '../lib/attendanceDisplay';
@@ -22,7 +22,7 @@ import {
   EmployeePayrollSummary,
   AttendanceStatus,
 } from '../types';
-import { CalendarCheck2, Clock, Table2, Fingerprint } from 'lucide-react';
+import { CalendarCheck2, Clock, Table2, Fingerprint, RefreshCw } from 'lucide-react';
 
 interface AttendancePageProps {
   sources: AttendanceSource[];
@@ -130,6 +130,7 @@ export const Attendance: React.FC<AttendancePageProps> = ({ sources, activeSourc
   }, [activeSourceId, fromDate, toDate, searchQuery, machineId, rawPagination.limit]);
 
   const dataVersion = useDataVersion();
+  const lastUpdated = useLastUpdatedTime();
   useEffect(() => {
     if (activeTab === 'daily') fetchDays(1, dayPagination.limit);
     else if (activeTab === 'timesheet') fetchTimesheet();
@@ -175,6 +176,28 @@ export const Attendance: React.FC<AttendancePageProps> = ({ sources, activeSourc
             <p className="text-xs text-slate-500 font-sans mt-0.5">
               Daily Check-In/Out records, automated hours calculation, overtime, and monthly timesheets
             </p>
+          </div>
+
+          <div className="flex items-center gap-2.5 shrink-0">
+            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200/80 text-[11px] font-medium text-slate-600 font-mono">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Updated {lastUpdated.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' })} IST</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (activeTab === 'daily') fetchDays(dayPagination.page, dayPagination.limit);
+                else if (activeTab === 'timesheet') fetchTimesheet();
+                else fetchRawPunches(rawPagination.page, rawPagination.limit);
+              }}
+              disabled={isLoading}
+              className="p-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-brand-500 rounded-xl transition-all shadow-xs flex items-center gap-1.5 text-xs font-semibold"
+              title="Reload attendance data from MongoDB"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-brand-500' : ''}`} />
+              <span className="hidden sm:inline">Refresh Data</span>
+            </button>
           </div>
         </div>
 

@@ -8,6 +8,7 @@ import { errorMessage } from '../lib/apiError';
 import { formatBusinessDate, formatBusinessDay, istMonth, istToday, monthLabel } from '../lib/businessDate';
 import { formatMinutes, metaFor } from '../lib/attendanceDisplay';
 import { inr } from '../lib/utils';
+import { to12h } from '../components/common/TimeInput';
 import type { AttendanceDay, AttendanceRegularizationRequest, EmployeePayrollSummary, EmployeeProfile, HRMSPolicySettings } from '../types';
 import { EmployeePunchCard } from '../components/attendance/EmployeePunchCard';
 import { AttendanceCalendar } from '../components/attendance/AttendanceCalendar';
@@ -75,7 +76,7 @@ export const EmployeeDashboard: React.FC = () => {
               <p className="text-xs text-sky-100/80 font-medium flex flex-wrap items-center gap-2 mt-1">
                 <Building2 className="w-3.5 h-3.5" />
                 <span>{[profile?.department, todayDay?.siteName ?? profile?.location].filter(Boolean).join(' • ') || 'ColorMyles'}</span>
-                {policy && (<><span>•</span><span>{policy.shift.shiftName} ({policy.shift.startTime} - {policy.shift.endTime})</span></>)}
+                {policy && (<><span>•</span><span>{policy.shift.shiftName} ({to12h(policy.shift.startTime)} - {to12h(policy.shift.endTime)})</span></>)}
               </p>
             </div>
           </div>

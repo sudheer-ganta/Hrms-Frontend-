@@ -202,6 +202,29 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({ isOpen, onClose, emp
               </table>
               </div>
 
+              {/* Employer-side PF for the month: information only, none of it is deducted from the employee's net pay. */}
+              {summary.pfWages !== undefined && summary.employerPf > 0 && (
+                <div className="px-6 pt-4 text-[13px]">
+                  <p className="font-semibold mb-1">Employer Contributions (not deducted from salary)</p>
+                  <table className="w-full border-collapse"><tbody>
+                    {([
+                      ['PF Wages', summary.pfWages],
+                      ['Employee PF (deducted above)', summary.pfDeduction],
+                      ['Employer EPF', summary.employerEpf],
+                      ['Employer Pension (EPS)', summary.employerEps],
+                      ['PF Admin Charge', summary.employerPfAdmin],
+                      ['EDLI', summary.employerEdli],
+                      ...(summary.employerEsic > 0 ? [['Employer ESIC', summary.employerEsic] as const] : []),
+                    ] as const).filter(([, v]) => v !== undefined).map(([label, value]) => (
+                      <tr key={label}>
+                        <td className="border border-black px-2 py-0.5 w-[70%]">{label}</td>
+                        <td className="border border-black px-2 py-0.5 text-right">{money(value as number)}</td>
+                      </tr>
+                    ))}
+                  </tbody></table>
+                </div>
+              )}
+
               <div className="px-6 py-4 text-[13px]">
                 <span className="font-semibold">Amount in Words: </span>
                 <div className="mt-1">{summary.netPayableWords}</div>

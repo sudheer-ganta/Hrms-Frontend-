@@ -51,7 +51,14 @@ apiClient.interceptors.response.use(
 
 type Envelope<T> = { success: true; data: T };
 const get = async <T>(url: string, params?: object): Promise<T> => (await apiClient.get<Envelope<T>>(url, { params })).data.data;
-const post = async <T>(url: string, body?: object): Promise<T> => (await apiClient.post<Envelope<T>>(url, body ?? {})).data.data;
+const post = async <T>(url: string, body?: object, timeout?: number): Promise<T> =>
+  (await apiClient.post<Envelope<T>>(url, body ?? {}, timeout ? { timeout } : undefined)).data.data;
+
+/**
+ * A sync waits on the attendance machine's vendor server, which the backend itself allows 45s per try
+ * (and retries once). The browser must wait longer than that, or it reports a timeout while the server is still working.
+ */
+const SYNC_TIMEOUT_MS = 180_000;
 const put = async <T>(url: string, body?: object): Promise<T> => (await apiClient.put<Envelope<T>>(url, body ?? {})).data.data;
 const patch = async <T>(url: string, body?: object): Promise<T> => (await apiClient.patch<Envelope<T>>(url, body ?? {})).data.data;
 const del = async <T>(url: string): Promise<T> => (await apiClient.delete<Envelope<T>>(url)).data.data;
@@ -100,10 +107,10 @@ export const api = {
     payload.id ? post<AttendanceDay>(`/attendance/adjust/${payload.id}/revoke`, { reason: payload.reason }) : post<AttendanceDay>('/attendance/adjust/revoke', payload),
 
   // ---- sync (same result shape for raw and IN/OUT)
-  syncSource: (sourceId: string, payload?: { fromDate?: string; toDate?: string; empCode?: string }) => post<SyncResult>(`/sync/${sourceId}`, payload),
-  syncAllSources: (payload?: { fromDate?: string; toDate?: string; empCode?: string }) => post<SyncAllResult>('/sync/all', payload),
-  syncInOutSource: (sourceId: string, payload?: { fromDate?: string; toDate?: string; empCode?: string }) => post<SyncResult>(`/sync/in-out/${sourceId}`, payload),
-  syncAllInOutSources: (payload?: { fromDate?: string; toDate?: string; empCode?: string }) => post<SyncAllResult>('/sync/in-out/all', payload),
+  syncSource: (sourceId: string, payload?: { fromDate?: string; toDate?: string; empCode?: string }) => post<SyncResult>(`/sync/${sourceId}`, payload, SYNC_TIMEOUT_MS),
+  syncAllSources: (payload?: { fromDate?: string; toDate?: string; empCode?: string }) => post<SyncAllResult>('/sync/all', payload, SYNC_TIMEOUT_MS),
+  syncInOutSource: (sourceId: string, payload?: { fromDate?: string; toDate?: string; empCode?: string }) => post<SyncResult>(`/sync/in-out/${sourceId}`, payload, SYNC_TIMEOUT_MS),
+  syncAllInOutSources: (payload?: { fromDate?: string; toDate?: string; empCode?: string }) => post<SyncAllResult>('/sync/in-out/all', payload, SYNC_TIMEOUT_MS),
   getSyncLogs: async (params: { sourceId?: string; status?: string; syncType?: string; page?: number; limit?: number }): Promise<SyncLogsResponse> =>
     (await apiClient.get<SyncLogsResponse>('/sync/logs', { params })).data,
   getSchedulerStatus: () => get<SchedulerStatus>('/sync/scheduler/status'),
@@ -146,6 +153,9 @@ export const api = {
   revokeRequest: (id: string, reason: string) => post<AttendanceRegularizationRequest>(`/requests/${id}/revoke`, { reason }),
   retryApplyRequest: (id: string) => post<AttendanceRegularizationRequest>(`/requests/${id}/apply`),
   getLeaveBalance: (empCode: string, year?: number) => get<LeaveBalance>(`/requests/balance/${encodeURIComponent(empCode)}`, year ? { year } : undefined),
+
+  // ---- realtime
+  getRealtimeVersion: () => get<{ revision: number; lastModified: string; scope?: string }>('/realtime/version'),
 
   // ---- health
   getHealth: async (): Promise<HealthStatus> => (await apiClient.get<Envelope<HealthStatus>>('/health')).data.data,

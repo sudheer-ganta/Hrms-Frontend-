@@ -15,6 +15,7 @@ import {
   FileSpreadsheet,
   Clock,
   Calculator,
+  PiggyBank,
   ClipboardCheck,
   X
 } from 'lucide-react';
@@ -29,7 +30,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ sources, isOpen = false, onClose }) => {
-  const { user, isSuperAdmin, isFounder, isEmployee } = useAuth();
+  const { user, isSuperAdmin, isFounder, isHr, isEmployee } = useAuth();
 
   // Employee-only navigation
   const employeeNavItems = [
@@ -94,6 +95,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ sources, isOpen = false, onClo
       badge: 'Live',
     },
     {
+      to: '/pf-deductions',
+      label: 'PF & Deductions',
+      icon: PiggyBank,
+      iconColor: 'text-teal-500',
+      badge: 'New',
+    },
+    {
       to: '/holidays',
       label: 'Corporate Holidays',
       icon: PartyPopper,
@@ -147,6 +155,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ sources, isOpen = false, onClo
       badge: 'Live',
     },
     {
+      to: '/pf-deductions',
+      label: 'PF & Deductions',
+      icon: PiggyBank,
+      iconColor: 'text-teal-500',
+      badge: 'New',
+    },
+    {
       to: '/holidays',
       label: 'Corporate Holidays',
       icon: PartyPopper,
@@ -183,10 +198,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ sources, isOpen = false, onClo
     },
   ];
 
+  // HR runs day-to-day operations; settings, sync history and user management are not part of the HR role on the server.
+  const hrNavItems = founderNavItems.filter((i) => !['/settings', '/sync-history', '/user-management'].includes(i.to));
+
   const navItems = isEmployee 
     ? employeeNavItems 
     : isSuperAdmin 
     ? superAdminNavItems 
+    : isHr
+    ? hrNavItems
     : founderNavItems;
 
   const handleNavClick = () => {
@@ -208,7 +228,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ sources, isOpen = false, onClo
                 ColorMyles <span className="text-[9px] bg-[#1184b0]/15 text-[#1184b0] font-semibold px-1.5 py-0.5 rounded-full">HRMS</span>
               </h1>
               <p className="text-[11px] text-slate-500 font-medium truncate">
-                {isEmployee ? 'Employee Portal' : isFounder ? 'Founder Console' : 'Super Admin Suite'}
+                {isEmployee ? 'Employee Portal' : isHr ? 'HR Console' : isFounder ? 'Founder Console' : 'Super Admin Suite'}
               </p>
             </div>
           </div>
@@ -320,7 +340,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ sources, isOpen = false, onClo
           </span>
         </div>
         <p className="text-[10px] text-slate-400">
-          {user?.role === 'SUPER_ADMIN' ? 'Root Super Admin' : user?.role === 'FOUNDER' ? 'Founder Account' : `Employee #${user?.empCode || 'User'}`}
+          {user?.role === 'SUPER_ADMIN' ? 'Root Super Admin' : user?.role === 'FOUNDER' ? 'Founder Account' : user?.role === 'HR' ? 'HR Account' : `Employee #${user?.empCode || 'User'}`}
         </p>
       </div>
     </aside>

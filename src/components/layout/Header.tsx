@@ -26,7 +26,7 @@ export const Header: React.FC<HeaderProps> = ({
   activeSourceId,
   onOpenMobileMenu,
 }) => {
-  const { user, logout, isSuperAdmin, isFounder, isEmployee } = useAuth();
+  const { user, logout, isSuperAdmin, isFounder, isHr, isEmployee } = useAuth();
   const [time, setTime] = useState<string>('');
 
   useEffect(() => {
@@ -80,20 +80,22 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Right Controls */}
       <div className="flex items-center space-x-2 sm:space-x-3">
-        {/* Live Clock */}
+        {/* Live DB Connection & Clock */}
         <div className="hidden lg:flex items-center space-x-2 text-xs bg-slate-100/90 border border-slate-200/80 px-3 py-1.5 rounded-xl text-slate-700 font-medium font-mono">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Live automatic data sync connected" />
           <Clock className="w-3.5 h-3.5 text-[#1184b0]" />
           <span>{time || 'Loading...'}</span>
         </div>
 
-        {/* Sync Now Button (Only for Founders & Super Admin) */}
+        {/* Sync Biometric Hardware Button (Only for Founders & Super Admin) */}
         {!isEmployee && (
           <button
             onClick={onOpenSync}
             className="flex items-center space-x-1.5 sm:space-x-2 text-xs font-semibold bg-gradient-to-r from-[#1184b0] to-[#011638] hover:opacity-95 text-white px-2.5 sm:px-3.5 py-1.5 rounded-xl transition-all shadow-md shadow-[#1184b0]/20 active:scale-95"
+            title="Pull latest punches from external biometric hardware into MongoDB. Regular HRMS data updates automatically."
           >
             <RefreshCw className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Sync Punches</span>
+            <span className="hidden sm:inline">Sync Devices</span>
           </button>
         )}
 
@@ -114,7 +116,7 @@ export const Header: React.FC<HeaderProps> = ({
                 {user?.name || 'User'}
               </span>
               <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-                {isSuperAdmin ? 'Super Admin' : isFounder ? 'Founder' : `#${user?.empCode || 'Employee'}`}
+                {isSuperAdmin ? 'Super Admin' : isFounder ? 'Founder' : isHr ? 'HR' : `#${user?.empCode || 'Employee'}`}
               </span>
             </div>
           </div>

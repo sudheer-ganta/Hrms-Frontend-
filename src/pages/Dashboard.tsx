@@ -5,7 +5,7 @@ import { AttendanceAnalyticsCharts } from '../components/dashboard/AttendanceAna
 import { LocationTabs } from '../components/layout/LocationTabs';
 import { ErrorAlert } from '../components/common/ErrorAlert';
 import { api } from '../services/api';
-import { useDataVersion } from '../services/dataSync';
+import { useDataVersion, useLastUpdatedTime } from '../services/dataSync';
 import { DashboardStats, AttendanceSource } from '../types';
 import { addDays, formatBusinessDate, istToday } from '../lib/businessDate';
 import { errorMessage } from '../lib/apiError';
@@ -59,6 +59,7 @@ export const Dashboard: React.FC<DashboardPageProps> = ({
   };
 
   const dataVersion = useDataVersion();
+  const lastUpdated = useLastUpdatedTime();
   useEffect(() => {
     fetchStats();
   }, [selectedDate, activeSourceId, dataVersion]);
@@ -92,8 +93,12 @@ export const Dashboard: React.FC<DashboardPageProps> = ({
                 {isToday ? 'Live Today' : 'Daily View'}
               </span>
             </h1>
-            <p className="text-xs text-slate-500 font-sans mt-0.5">
-              Multi-location biometric attendance, work hours tracking, and device sync management
+            <p className="text-xs text-slate-500 font-sans mt-0.5 flex items-center gap-2 flex-wrap">
+              <span>Automatic data loading from MongoDB</span>
+              <span>•</span>
+              <span className="text-slate-600 font-mono">
+                Updated at {lastUpdated.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' })} IST
+              </span>
             </p>
           </div>
           <div className="flex items-center gap-2.5">
@@ -109,10 +114,11 @@ export const Dashboard: React.FC<DashboardPageProps> = ({
               type="button"
               onClick={fetchStats}
               disabled={isLoading}
-              className="p-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-brand-500 rounded-xl transition-all shadow-card"
-              title="Refresh Dashboard"
+              className="px-3 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-brand-500 rounded-xl transition-all shadow-card flex items-center gap-1.5 text-xs font-semibold"
+              title="Reload latest data from database"
             >
-              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-brand-500' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-brand-500' : ''}`} />
+              <span className="hidden sm:inline">Refresh Data</span>
             </button>
           </div>
         </div>
