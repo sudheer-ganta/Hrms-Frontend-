@@ -18,7 +18,7 @@ import {
   FileText,
   RefreshCw
 } from 'lucide-react';
-import { api } from '../services/api';
+import { api, refreshApiData } from '../services/api';
 import { useDataVersion, useLastUpdatedTime } from '../services/dataSync';
 import { AttendanceRegularizationRequest, EmployeeProfile } from '../types';
 import { errorMessage } from '../lib/apiError';
@@ -162,7 +162,7 @@ export const Approvals: React.FC = () => {
 
           <button
             type="button"
-            onClick={loadData}
+            onClick={() => { refreshApiData(); loadData(); }}
             disabled={isLoading}
             className="p-2.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-brand-500 rounded-xl transition-all shadow-xs flex items-center gap-1.5 text-xs font-semibold"
             title="Refresh Requests"

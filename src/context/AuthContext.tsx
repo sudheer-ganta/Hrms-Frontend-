@@ -23,7 +23,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   });
   const [token, setToken] = useState<string | null>(() => readStorage(TOKEN_STORAGE_KEY));
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  // With a saved session, show the app immediately and verify it in the background (a cold backend can take many
+  // seconds to answer /auth/me). Every API call is still authorised by the server, and a 401 ends the session.
+  const [isLoading, setIsLoading] = useState<boolean>(() => !(readStorage(TOKEN_STORAGE_KEY) && readStorage(USER_STORAGE_KEY)));
 
   const clearSession = useCallback(() => {
     disconnectRealtimeSync();

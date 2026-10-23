@@ -1,16 +1,16 @@
 import { useSyncExternalStore } from 'react';
-import { TOKEN_STORAGE_KEY } from './api';
+import { TOKEN_STORAGE_KEY, clearApiCache } from './api';
 
 /**
  * App-wide "data changed" signal.
  * - Every local write bumps `mutation` and broadcasts across open tabs.
  * - Server-Sent Events (SSE) pushes cross-user & background scheduler changes in real time.
  * - Cross-tab communication via BroadcastChannel synchronizes multiple tabs with 0 latency.
- * - Returning to the tab / window focus checks for updates.
+ * - Returning to the tab / window focus asks the server whether anything changed, and refreshes only if it did
+ *   (it must not re-fetch every screen on each tab switch).
  */
 
 let mutation = 0;
-let focus = 0;
 let lastFocusCheck = Date.now();
 let lastUpdatedTime = new Date();
 let currentKnownRevision = 0;
@@ -34,6 +34,7 @@ if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
     broadcastChannel = new BroadcastChannel('colormyles_hrms_sync');
     broadcastChannel.onmessage = (event) => {
       if (event.data?.type === 'DATA_CHANGED') {
+        clearApiCache();
         mutation++;
         emit();
       }
@@ -47,6 +48,7 @@ if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
 export const notifyDataChanged = (broadcast = true) => {
   if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
+    clearApiCache();
     mutation++;
     emit();
     if (broadcast && broadcastChannel) {
@@ -71,9 +73,16 @@ const checkServerRevision = async () => {
     if (!res.ok) return;
     const json = await res.json();
     const serverRev = json?.data?.revision;
-    if (typeof serverRev === 'number' && serverRev > currentKnownRevision) {
+    if (typeof serverRev !== 'number') return;
+    // First sighting (the stream's 'init' has not arrived yet): remember it, nothing has changed from our point of view.
+    if (currentKnownRevision === 0) {
+      currentKnownRevision = serverRev;
+    } else if (serverRev > currentKnownRevision) {
       currentKnownRevision = serverRev;
       notifyDataChanged(false);
+    } else {
+      // Verified current: refresh the "Updated at" label only (the data version, and so every screen, is untouched).
+      emit();
     }
   } catch {
     // network blip, ignore
@@ -170,11 +179,9 @@ export const disconnectRealtimeSync = () => {
 if (typeof window !== 'undefined') {
   const onFocusOrVisible = () => {
     const now = Date.now();
-    // Throttle to once every 5 seconds
+    // Throttle to once every 5 seconds. Only a real server-side change refreshes the screens.
     if (now - lastFocusCheck > 5000) {
       lastFocusCheck = now;
-      focus++;
-      emit();
       void checkServerRevision();
     }
   };
@@ -192,9 +199,9 @@ const subscribe = (cb: () => void) => {
   };
 };
 
-/** Changes after any write anywhere, cross-user SSE event, cross-tab broadcast, or returning to tab. */
+/** Changes after any write anywhere, cross-user SSE event, cross-tab broadcast, or a server change seen on returning to the tab. */
 export const useDataVersion = (): number =>
-  useSyncExternalStore(subscribe, () => mutation + focus);
+  useSyncExternalStore(subscribe, () => mutation);
 
 /** Changes only after a write — for screens with unsaved drafts. */
 export const useMutationVersion = (): number => useSyncExternalStore(subscribe, () => mutation);

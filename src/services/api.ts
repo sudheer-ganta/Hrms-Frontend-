@@ -4,13 +4,13 @@ import { normalizeError } from '../lib/apiError';
 import type {
   AttendanceCalendar, AttendanceDay, AttendanceDaysResponse, AttendanceRegularizationRequest, AttendanceSource, AttendanceStatus,
   CompanyHoliday, CreateRequestInput, DashboardStats, EmployeePayrollSummary, EmployeeProfile, EmployeeProfileInput,
-  AttendanceCoverage, HRMSPolicySettings, HealthStatus, LeaveBalance, LeaveType, OtAdjustments, Pagination, PayrollRunStatus, PolicyUpdate, PunchResult,
+  AttendanceCoverage, HRMSPolicySettings, HealthStatus, RulesDocument, LeaveBalance, LeaveType, OtAdjustments, Pagination, PayrollRunStatus, PolicyUpdate, PunchResult,
   PunchStatus, RawPunchResponse, SalaryBreakdown, SchedulerStatus, SendPayslipResponse, Site, SyncAllResult, SyncLogsResponse,
   SyncResult, TimesheetEmployee,
 } from '../types';
 import type { AuthResponse, CreateUserInput, User } from '../types/auth.types';
 
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
+const API_BASE = import.meta.env?.VITE_API_URL || '/api';
 export const TOKEN_STORAGE_KEY = 'etimehr_auth_token';
 export const USER_STORAGE_KEY = 'etimehr_auth_user';
 
@@ -33,8 +33,11 @@ apiClient.interceptors.response.use(
     const url = res.config?.url || '';
     // Writes change shared data; previews and login do not.
     if (method !== 'get' && !url.includes('/payroll/preview') && !url.includes('/salary-preview') && !url.includes('/auth/login')) {
+      clearApiCache();
       notifyDataChanged();
     }
+    // A different user must never see the previous user's cached responses.
+    if (url.includes('/auth/login') || url.includes('/auth/logout')) clearApiCache();
     return res;
   },
   (error) => {
@@ -42,6 +45,7 @@ apiClient.interceptors.response.use(
     const n = normalizeError(error);
     // Only an authentication failure ends the session (a 403 is a permission problem, not a logout).
     if (n.status === 401 && n.code === 'UNAUTHENTICATED' && !url.includes('/auth/login')) {
+      clearApiCache();
       try { localStorage.removeItem(TOKEN_STORAGE_KEY); localStorage.removeItem(USER_STORAGE_KEY); } catch { /* ignore */ }
       if (!window.location.pathname.startsWith('/login')) window.location.assign('/login');
     }
@@ -50,7 +54,63 @@ apiClient.interceptors.response.use(
 );
 
 type Envelope<T> = { success: true; data: T };
-const get = async <T>(url: string, params?: object): Promise<T> => (await apiClient.get<Envelope<T>>(url, { params })).data.data;
+
+/**
+ * Short-lived read cache + in-flight de-duplication. Going back to a page, or two components asking for the same
+ * thing, no longer waits on the server again. Anything that can change the data empties it: every write, every
+ * realtime "data changed" signal (see dataSync), login/logout. The TTL only bounds what a missed signal can leave stale.
+ * The "Refresh" buttons call refreshApiData() to force a real round trip.
+ */
+const CACHE_TTL_MS = 60_000;
+const CACHE_MAX_ENTRIES = 80;
+const UNCACHED = ['/auth/', '/realtime/', '/health', '/attendance/punch/today', '/sync/scheduler/status'];
+const responseCache = new Map<string, { at: number; value: unknown }>();
+const inFlight = new Map<string, Promise<unknown>>();
+let cacheGeneration = 0;
+
+export const clearApiCache = () => {
+  cacheGeneration++;
+  responseCache.clear();
+  inFlight.clear();
+};
+/** For manual "Refresh" buttons: the next reads go to the server. */
+export const refreshApiData = clearApiCache;
+
+const cacheKey = (url: string, params?: object): string => {
+  let token = '';
+  try { token = (localStorage.getItem(TOKEN_STORAGE_KEY) || '').slice(-16); } catch { /* storage unavailable */ }
+  return `${token}|${url}|${params ? JSON.stringify(params) : ''}`;
+};
+
+const cachedRead = async <T>(url: string, params: object | undefined, fetchFresh: () => Promise<T>): Promise<T> => {
+  if (UNCACHED.some((p) => url.includes(p))) return fetchFresh();
+
+  const key = cacheKey(url, params);
+  const hit = responseCache.get(key);
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.value as T;
+  const pending = inFlight.get(key);
+  if (pending) return pending as Promise<T>;
+
+  const generation = cacheGeneration;
+  const request = fetchFresh()
+    .then((value) => {
+      // A write/refresh that happened while this was in flight makes the response suspect: don't keep it.
+      if (generation === cacheGeneration) {
+        if (responseCache.size >= CACHE_MAX_ENTRIES) responseCache.delete(responseCache.keys().next().value as string);
+        responseCache.set(key, { at: Date.now(), value });
+      }
+      return value;
+    })
+    .finally(() => { if (inFlight.get(key) === request) inFlight.delete(key); });
+  inFlight.set(key, request);
+  return request;
+};
+
+const get = <T>(url: string, params?: object): Promise<T> =>
+  cachedRead(url, params, async () => (await apiClient.get<Envelope<T>>(url, { params })).data.data);
+/** Paginated endpoints return { data, pagination, ... } at the top level instead of inside the envelope. */
+const getRaw = <T>(url: string, params?: object): Promise<T> =>
+  cachedRead(url, params, async () => (await apiClient.get<T>(url, { params })).data);
 const post = async <T>(url: string, body?: object, timeout?: number): Promise<T> =>
   (await apiClient.post<Envelope<T>>(url, body ?? {}, timeout ? { timeout } : undefined)).data.data;
 
@@ -93,11 +153,11 @@ export const api = {
 
   // ---- attendance (one resolver, one verdict per employee-day)
   getDashboardStats: (params?: { date?: string; siteId?: string }) => get<DashboardStats>('/attendance/stats', params),
-  getAttendanceDays: async (params: DayQuery): Promise<AttendanceDaysResponse> => (await apiClient.get<AttendanceDaysResponse>('/attendance/days', { params })).data,
+  getAttendanceDays: (params: DayQuery) => getRaw<AttendanceDaysResponse>('/attendance/days', params),
   getAttendanceCalendar: (month: string, employeeCode: string) => get<AttendanceCalendar>('/attendance/calendar', { month, employeeCode }),
   getTimesheet: (params: { siteId?: string; fromDate: string; toDate: string; search?: string }) => get<TimesheetEmployee[]>('/attendance/timesheet', params),
-  getRawPunches: async (params: { sourceId?: string; fromDate?: string; toDate?: string; employeeCode?: string; search?: string; machineId?: string; origin?: 'DEVICE' | 'ESS_WEB'; page?: number; limit?: number }): Promise<RawPunchResponse> =>
-    (await apiClient.get<RawPunchResponse>('/attendance/raw-swipes', { params })).data,
+  getRawPunches: (params: { sourceId?: string; fromDate?: string; toDate?: string; employeeCode?: string; search?: string; machineId?: string; origin?: 'DEVICE' | 'ESS_WEB'; page?: number; limit?: number }) =>
+    getRaw<RawPunchResponse>('/attendance/raw-swipes', params),
   getTodayPunchStatus: (empCode?: string) => get<PunchStatus>('/attendance/punch/today', empCode ? { empCode } : undefined),
   recordPunch: (payload: { empCode?: string; punchType?: 'IN' | 'OUT' | 'AUTO'; latitude?: number; longitude?: number; accuracy?: number; address?: string; override?: boolean }) => post<PunchResult>('/attendance/punch', payload),
   recomputeAttendance: (payload: { fromDate: string; toDate: string; employeeCode?: string }) => post<{ recomputed: number; months: string[] }>('/attendance/recompute', payload),
@@ -111,14 +171,15 @@ export const api = {
   syncAllSources: (payload?: { fromDate?: string; toDate?: string; empCode?: string }) => post<SyncAllResult>('/sync/all', payload, SYNC_TIMEOUT_MS),
   syncInOutSource: (sourceId: string, payload?: { fromDate?: string; toDate?: string; empCode?: string }) => post<SyncResult>(`/sync/in-out/${sourceId}`, payload, SYNC_TIMEOUT_MS),
   syncAllInOutSources: (payload?: { fromDate?: string; toDate?: string; empCode?: string }) => post<SyncAllResult>('/sync/in-out/all', payload, SYNC_TIMEOUT_MS),
-  getSyncLogs: async (params: { sourceId?: string; status?: string; syncType?: string; page?: number; limit?: number }): Promise<SyncLogsResponse> =>
-    (await apiClient.get<SyncLogsResponse>('/sync/logs', { params })).data,
+  getSyncLogs: (params: { sourceId?: string; status?: string; syncType?: string; page?: number; limit?: number }) =>
+    getRaw<SyncLogsResponse>('/sync/logs', params),
   getSchedulerStatus: () => get<SchedulerStatus>('/sync/scheduler/status'),
   toggleScheduler: (payload?: { enabled?: boolean; intervalMinutes?: number }) => post<SchedulerStatus>('/sync/scheduler/toggle', payload),
   triggerSchedulerNow: () => post<SchedulerStatus['lastRunResult']>('/sync/scheduler/trigger-now'),
 
   // ---- policy
   getPolicySettings: () => get<HRMSPolicySettings>('/settings'),
+  getRules: () => get<RulesDocument>('/settings/rules'),
   updatePolicySettings: (payload: PolicyUpdate) => put<HRMSPolicySettings>('/settings', payload),
   addHoliday: (holiday: { date: string; name: string; type?: CompanyHoliday['type']; paid?: boolean }) => post<CompanyHoliday>('/settings/holidays', holiday),
   removeHoliday: (id: string) => del<{ removed: boolean }>(`/settings/holidays/${id}`),

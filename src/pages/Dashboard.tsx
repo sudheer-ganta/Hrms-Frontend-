@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StatsCards } from '../components/dashboard/StatsCards';
 import { LocationHealth } from '../components/dashboard/LocationHealth';
 import { AttendanceAnalyticsCharts } from '../components/dashboard/AttendanceAnalyticsCharts';
 import { LocationTabs } from '../components/layout/LocationTabs';
 import { ErrorAlert } from '../components/common/ErrorAlert';
-import { api } from '../services/api';
+import { api, refreshApiData } from '../services/api';
 import { useDataVersion, useLastUpdatedTime } from '../services/dataSync';
 import { DashboardStats, AttendanceSource } from '../types';
 import { addDays, formatBusinessDate, istToday } from '../lib/businessDate';
@@ -36,33 +36,60 @@ export const Dashboard: React.FC<DashboardPageProps> = ({
 }) => {
   const getTodayStr = () => istToday();
   const [selectedDate, setSelectedDate] = useState<string>(getTodayStr());
-  const [stats, setStats] = useState<DashboardStats | null>(null);
+  // One request answers every location for the day (`bySite`); switching location is then just a lookup, no request.
+  const [allStats, setAllStats] = useState<DashboardStats | null>(null);
+  // Only used when the server is older and does not send `bySite`: the per-location answer, asked for separately.
+  const [fallback, setFallback] = useState<{ view: string; data: DashboardStats } | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const latestRequest = useRef(0);
 
   const isToday = selectedDate === getTodayStr();
+  const currentView = `${selectedDate}|${activeSourceId}`;
 
   const fetchStats = async () => {
+    const requestId = ++latestRequest.current;
     setIsLoading(true);
     setError(null);
     try {
-      const data = await api.getDashboardStats({
-        date: selectedDate,
-        siteId: activeSourceId !== 'all' ? activeSourceId : undefined,
-      });
-      setStats(data);
+      const data = await api.getDashboardStats({ date: selectedDate });
+      if (requestId !== latestRequest.current) return; // a newer request owns the screen
+      setAllStats(data);
     } catch (err) {
+      if (requestId !== latestRequest.current) return;
       setError(errorMessage(err, 'Failed to load dashboard data'));
     } finally {
-      setIsLoading(false);
+      if (requestId === latestRequest.current) setIsLoading(false);
     }
   };
 
   const dataVersion = useDataVersion();
   const lastUpdated = useLastUpdatedTime();
+  // Not tied to the location: changing the tab must not ask the server again.
   useEffect(() => {
     fetchStats();
-  }, [selectedDate, activeSourceId, dataVersion]);
+  }, [selectedDate, dataVersion]);
+
+  const allForDate = allStats && allStats.selectedDate === selectedDate ? allStats : null;
+  const siteId = activeSourceId === 'all'
+    ? null
+    : allForDate?.locationBreakdown.find((l) => l.sourceId === activeSourceId || l.siteId === activeSourceId)?.siteId ?? activeSourceId;
+  const localStats = activeSourceId === 'all' ? allForDate : allForDate?.bySite?.[siteId as string] ?? null;
+  const needsFallback = !!allForDate && activeSourceId !== 'all' && !localStats;
+
+  useEffect(() => {
+    if (!needsFallback) return;
+    let cancelled = false;
+    const view = currentView;
+    api.getDashboardStats({ date: selectedDate, siteId: activeSourceId })
+      .then((data) => { if (!cancelled) setFallback({ view, data }); })
+      .catch((err) => { if (!cancelled) setError(errorMessage(err, 'Failed to load dashboard data')); });
+    return () => { cancelled = true; };
+  }, [needsFallback, currentView, dataVersion]);
+
+  const stats: DashboardStats | null = localStats ?? (fallback && fallback.view === currentView ? fallback.data : null);
+  // Skeletons are for a view we have nothing for yet; a background refresh keeps showing the numbers it has.
+  const showSkeleton = !stats && !error;
 
   const changeDateByDays = (days: number) => {
     const next = addDays(selectedDate, days);
@@ -112,7 +139,7 @@ export const Dashboard: React.FC<DashboardPageProps> = ({
             </Link>
             <button
               type="button"
-              onClick={fetchStats}
+              onClick={() => { refreshApiData(); fetchStats(); }}
               disabled={isLoading}
               className="px-3 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-brand-500 rounded-xl transition-all shadow-card flex items-center gap-1.5 text-xs font-semibold"
               title="Reload latest data from database"
@@ -229,18 +256,18 @@ export const Dashboard: React.FC<DashboardPageProps> = ({
         <ErrorAlert
           title="Could not load the dashboard"
           message={error}
-          onRetry={fetchStats}
+          onRetry={() => { refreshApiData(); fetchStats(); }}
         />
       )}
 
       {/* KPI Cards */}
-      <StatsCards stats={stats} isLoading={isLoading} selectedDate={selectedDate} />
+      <StatsCards stats={stats} isLoading={showSkeleton} selectedDate={selectedDate} />
 
       {/* Rich Charts & Graphs Section */}
       <AttendanceAnalyticsCharts 
         stats={stats} 
         locations={stats?.locationBreakdown || []} 
-        isLoading={isLoading} 
+        isLoading={showSkeleton} 
         activeSourceId={activeSourceId}
         activeSourceName={activeSourceName}
       />
@@ -250,7 +277,7 @@ export const Dashboard: React.FC<DashboardPageProps> = ({
         locations={stats?.locationBreakdown || []}
         sources={sources}
         onSyncLocation={handleSyncLocation}
-        isLoading={isLoading}
+        isLoading={showSkeleton}
         selectedDate={selectedDate}
       />
     </div>

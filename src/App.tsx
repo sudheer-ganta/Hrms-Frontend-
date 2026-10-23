@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { Suspense, lazy, useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -7,21 +7,21 @@ import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
 import { SyncModal } from './components/common/SyncModal';
 
-// Pages
-import { Login } from './pages/Login';
-import { Dashboard } from './pages/Dashboard';
-import { EmployeeDashboard } from './pages/EmployeeDashboard';
-import { Attendance } from './pages/Attendance';
-import { RawSwipes } from './pages/RawSwipes';
-import { Employees } from './pages/Employees';
-import { Holidays } from './pages/Holidays';
-import { MyPortal } from './pages/MyPortal';
-import { SyncHistory } from './pages/SyncHistory';
-import { Settings } from './pages/Settings';
-import { UserManagement } from './pages/UserManagement';
-import { OTCalculator } from './pages/OTCalculator';
-import { PfDeductions } from './pages/PfDeductions';
-import { Approvals } from './pages/Approvals';
+// Pages are loaded on first visit so the first screen downloads less JavaScript.
+const Login = lazy(() => import('./pages/Login').then((m) => ({ default: m.Login })));
+const Dashboard = lazy(() => import('./pages/Dashboard').then((m) => ({ default: m.Dashboard })));
+const EmployeeDashboard = lazy(() => import('./pages/EmployeeDashboard').then((m) => ({ default: m.EmployeeDashboard })));
+const Attendance = lazy(() => import('./pages/Attendance').then((m) => ({ default: m.Attendance })));
+const RawSwipes = lazy(() => import('./pages/RawSwipes').then((m) => ({ default: m.RawSwipes })));
+const Employees = lazy(() => import('./pages/Employees').then((m) => ({ default: m.Employees })));
+const Holidays = lazy(() => import('./pages/Holidays').then((m) => ({ default: m.Holidays })));
+const MyPortal = lazy(() => import('./pages/MyPortal').then((m) => ({ default: m.MyPortal })));
+const SyncHistory = lazy(() => import('./pages/SyncHistory').then((m) => ({ default: m.SyncHistory })));
+const Settings = lazy(() => import('./pages/Settings').then((m) => ({ default: m.Settings })));
+const UserManagement = lazy(() => import('./pages/UserManagement').then((m) => ({ default: m.UserManagement })));
+const OTCalculator = lazy(() => import('./pages/OTCalculator').then((m) => ({ default: m.OTCalculator })));
+const PfDeductions = lazy(() => import('./pages/PfDeductions').then((m) => ({ default: m.PfDeductions })));
+const Approvals = lazy(() => import('./pages/Approvals').then((m) => ({ default: m.Approvals })));
 
 import { api } from './services/api';
 import { useDataVersion } from './services/dataSync';
@@ -40,6 +40,12 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+const PageFallback: React.FC = () => (
+  <div className="flex items-center justify-center py-24" role="status" aria-label="Loading page">
+    <div className="w-8 h-8 border-4 border-sky-400 border-t-transparent rounded-full animate-spin" />
+  </div>
+);
 
 const MainLayout: React.FC = () => {
   const { isEmployee } = useAuth();
@@ -106,6 +112,7 @@ const MainLayout: React.FC = () => {
               <button type="button" onClick={loadSources} className="px-2.5 py-1 rounded-lg bg-white border border-rose-200 hover:bg-rose-100">Retry</button>
             </div>
           )}
+          <Suspense fallback={<PageFallback />}>
           <Routes>
             {/* Root route: Auto-switches based on Role */}
             <Route
@@ -251,6 +258,7 @@ const MainLayout: React.FC = () => {
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          </Suspense>
         </main>
       </div>
 
@@ -271,6 +279,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <Router>
+          <Suspense fallback={<PageFallback />}>
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route
@@ -282,6 +291,7 @@ export default function App() {
               }
             />
           </Routes>
+          </Suspense>
         </Router>
       </AuthProvider>
     </QueryClientProvider>

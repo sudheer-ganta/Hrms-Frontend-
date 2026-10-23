@@ -19,7 +19,7 @@ import {
   Clock
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { api } from '../services/api';
+import { api, refreshApiData } from '../services/api';
 import { useDataVersion, useLastUpdatedTime } from '../services/dataSync';
 import { errorMessage } from '../lib/apiError';
 import type { EmployeeProfile } from '../types';
@@ -206,7 +206,7 @@ export const UserManagement: React.FC = () => {
 
           <button
             type="button"
-            onClick={loadData}
+            onClick={() => { refreshApiData(); loadData(); }}
             disabled={loading}
             className="p-3 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-2xl transition-all shadow-md active:scale-95 shrink-0"
             title="Refresh Users"

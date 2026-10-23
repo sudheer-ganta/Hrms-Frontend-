@@ -4,7 +4,7 @@ import { AttendanceFilterBar } from '../components/attendance/AttendanceFilterBa
 import { TableSkeleton } from '../components/common/TableSkeleton';
 import { EmptyState } from '../components/common/EmptyState';
 import { ErrorAlert } from '../components/common/ErrorAlert';
-import { api } from '../services/api';
+import { api, refreshApiData } from '../services/api';
 import { useDataVersion } from '../services/dataSync';
 import { RawPunch, Pagination, AttendanceSource } from '../types';
 import { Fingerprint } from 'lucide-react';
@@ -137,7 +137,7 @@ export const RawSwipes: React.FC<RawSwipesPageProps> = ({
         onToDateChange={setToDate}
         onSearchChange={setSearchQuery}
         onMachineIdChange={setMachineId}
-        onRefresh={() => fetchSwipes(pagination.page, pagination.limit)}
+        onRefresh={() => { refreshApiData(); fetchSwipes(pagination.page, pagination.limit); }}
         onSyncNow={() => onOpenSync(activeSourceId !== 'all' ? activeSourceId : undefined)}
         onExportCSV={handleExportCSV}
         isRefreshing={isLoading}
@@ -147,7 +147,7 @@ export const RawSwipes: React.FC<RawSwipesPageProps> = ({
         <ErrorAlert
           title="Error Loading Raw Swipes"
           message={error}
-          onRetry={() => fetchSwipes(pagination.page, pagination.limit)}
+          onRetry={() => { refreshApiData(); fetchSwipes(pagination.page, pagination.limit); }}
         />
       )}
 

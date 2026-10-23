@@ -93,7 +93,7 @@ export const Holidays: React.FC = () => {
     }
   };
 
-  const holidays = (policy?.holidays || []).sort((a, b) => a.date.localeCompare(b.date));
+  const holidays = [...(policy?.holidays || [])].sort((a, b) => a.date.localeCompare(b.date));
 
   // Current year / upcoming breakdown
   const currentMonth = istMonth();

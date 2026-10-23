@@ -14,7 +14,8 @@ import {
   Check,
   Lock,
   Unlock,
-  AlertTriangle
+  AlertTriangle,
+  BookOpen
 } from 'lucide-react';
 import { api } from '../services/api';
 import { AttendanceSource, HRMSPolicySettings, SchedulerStatus, PayrollRunStatus, PolicyUpdate, DAY_NAMES, DayName, Site } from '../types';
@@ -25,6 +26,7 @@ import { useAuth } from '../context/AuthContext';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { PayrollCloseReviewModal } from '../components/settings/PayrollCloseReviewModal';
 import { ShiftFields } from '../components/settings/ShiftEditor';
+import { RulesTab } from '../components/settings/RulesTab';
 
 interface SettingsPageProps {
   sources: AttendanceSource[];
@@ -40,7 +42,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
   const [sites, setSites] = useState<Site[]>([]);
   const [siteDrafts, setSiteDrafts] = useState<Record<string, { lat: string; lng: string; radiusM: string }>>({});
   const [newHolidayPaid, setNewHolidayPaid] = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState<'policy' | 'holidays' | 'scheduler' | 'sources' | 'payroll'>('policy');
+  const [activeTab, setActiveTab] = useState<'policy' | 'holidays' | 'scheduler' | 'sources' | 'payroll' | 'rules'>('policy');
   const [policy, setPolicy] = useState<HRMSPolicySettings | null>(null);
   const [scheduler, setScheduler] = useState<SchedulerStatus | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -291,6 +293,19 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
         >
           <Lock className="w-4 h-4" />
           <span>Payroll Closing</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('rules')}
+          className={`px-4 py-2 rounded-xl text-xs font-heading font-bold transition-all flex items-center gap-2 ${
+            activeTab === 'rules'
+              ? 'bg-white text-brand-600 shadow-sm'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <BookOpen className="w-4 h-4" />
+          <span>Rules</span>
         </button>
       </div>
 
@@ -1056,6 +1071,9 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
           </div>
         </div>
       )}
+
+      {/* TAB 6: RULES (read-only rulebook) */}
+      {activeTab === 'rules' && <RulesTab />}
 
       <PayrollCloseReviewModal
         month={payrollMonth}

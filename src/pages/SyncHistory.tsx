@@ -4,7 +4,7 @@ import { StatusBadge } from '../components/common/StatusBadge';
 import { TableSkeleton } from '../components/common/TableSkeleton';
 import { EmptyState } from '../components/common/EmptyState';
 import { ErrorAlert } from '../components/common/ErrorAlert';
-import { api } from '../services/api';
+import { api, refreshApiData } from '../services/api';
 import { useDataVersion } from '../services/dataSync';
 import { SyncLog, Pagination, AttendanceSource } from '../types';
 import { History, RefreshCw, X } from 'lucide-react';
@@ -116,7 +116,7 @@ export const SyncHistory: React.FC<SyncHistoryPageProps> = ({
 
         <button
           type="button"
-          onClick={() => fetchLogs(pagination.page, pagination.limit)}
+          onClick={() => { refreshApiData(); fetchLogs(pagination.page, pagination.limit); }}
           disabled={isLoading}
           className="p-2 bg-slate-50 border border-slate-200 hover:bg-slate-100 rounded-xl text-slate-600 hover:text-slate-900 transition-all shadow-xs"
           title="Refresh Logs"
@@ -129,7 +129,7 @@ export const SyncHistory: React.FC<SyncHistoryPageProps> = ({
         <ErrorAlert
           title="Error Fetching Logs"
           message={error}
-          onRetry={() => fetchLogs(pagination.page, pagination.limit)}
+          onRetry={() => { refreshApiData(); fetchLogs(pagination.page, pagination.limit); }}
         />
       )}
 

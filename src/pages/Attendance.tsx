@@ -7,7 +7,7 @@ import { TimesheetMatrix } from '../components/attendance/TimesheetMatrix';
 import { AttendanceTable } from '../components/attendance/AttendanceTable';
 import { AttendanceFilterBar } from '../components/attendance/AttendanceFilterBar';
 import { ErrorAlert } from '../components/common/ErrorAlert';
-import { api } from '../services/api';
+import { api, refreshApiData } from '../services/api';
 import { useDataVersion, useLastUpdatedTime } from '../services/dataSync';
 import { errorMessage } from '../lib/apiError';
 import { datesBetween, istToday } from '../lib/businessDate';
@@ -187,6 +187,7 @@ export const Attendance: React.FC<AttendancePageProps> = ({ sources, activeSourc
             <button
               type="button"
               onClick={() => {
+                refreshApiData();
                 if (activeTab === 'daily') fetchDays(dayPagination.page, dayPagination.limit);
                 else if (activeTab === 'timesheet') fetchTimesheet();
                 else fetchRawPunches(rawPagination.page, rawPagination.limit);
@@ -262,7 +263,7 @@ export const Attendance: React.FC<AttendancePageProps> = ({ sources, activeSourc
           onToDateChange={setToDate}
           onSearchChange={setSearchQuery}
           onMachineIdChange={setMachineId}
-          onRefresh={() => fetchRawPunches(rawPagination.page, rawPagination.limit)}
+          onRefresh={() => { refreshApiData(); fetchRawPunches(rawPagination.page, rawPagination.limit); }}
           onSyncNow={() => onOpenSync(activeSourceId !== 'all' ? activeSourceId : undefined)}
           onExportCSV={handleExportCSV}
           isRefreshing={isLoading}
@@ -277,7 +278,7 @@ export const Attendance: React.FC<AttendancePageProps> = ({ sources, activeSourc
           onToDateChange={setToDate}
           onSearchChange={setSearchQuery}
           onStatusFilterChange={setStatusFilter}
-          onRefresh={() => (activeTab === 'daily' ? fetchDays(dayPagination.page, dayPagination.limit) : fetchTimesheet())}
+          onRefresh={() => { refreshApiData(); if (activeTab === 'daily') fetchDays(dayPagination.page, dayPagination.limit); else fetchTimesheet(); }}
           onSyncNow={() => onOpenSync(activeSourceId !== 'all' ? activeSourceId : undefined)}
           onExportCSV={handleExportCSV}
           isRefreshing={isLoading}
@@ -288,7 +289,7 @@ export const Attendance: React.FC<AttendancePageProps> = ({ sources, activeSourc
         <ErrorAlert
           title="Error Loading Attendance"
           message={error}
-          onRetry={() => (activeTab === 'daily' ? fetchDays() : activeTab === 'timesheet' ? fetchTimesheet() : fetchRawPunches())}
+          onRetry={() => { refreshApiData(); if (activeTab === 'daily') fetchDays(); else if (activeTab === 'timesheet') fetchTimesheet(); else fetchRawPunches(); }}
         />
       )}
 

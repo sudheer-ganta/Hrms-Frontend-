@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { LocationTabs } from '../components/layout/LocationTabs';
 import { TableSkeleton } from '../components/common/TableSkeleton';
 import { EmptyState } from '../components/common/EmptyState';
-import { api } from '../services/api';
+import { api, refreshApiData } from '../services/api';
 import { useDataVersion, useLastUpdatedTime } from '../services/dataSync';
 import { AttendanceSource, EmployeeProfile, EmployeePayrollSummary } from '../types';
 import { istMonth } from '../lib/businessDate';
@@ -196,7 +196,7 @@ export const Employees: React.FC<EmployeesPageProps> = ({
 
           <button
             type="button"
-            onClick={loadData}
+            onClick={() => { refreshApiData(); loadData(); }}
             disabled={isLoading}
             className="p-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-brand-500 rounded-xl transition-all shadow-xs flex items-center gap-1.5 text-xs font-semibold"
             title="Refresh Directory from MongoDB"
