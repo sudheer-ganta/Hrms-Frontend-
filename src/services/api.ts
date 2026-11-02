@@ -3,7 +3,7 @@ import { notifyDataChanged } from './dataSync';
 import { normalizeError } from '../lib/apiError';
 import type {
   AttendanceCalendar, AttendanceDay, AttendanceDaysResponse, AttendanceRegularizationRequest, AttendanceSource, AttendanceStatus,
-  CompanyHoliday, CreateRequestInput, DashboardStats, EmployeePayrollSummary, EmployeeProfile, EmployeeProfileInput,
+  CompanyHoliday, CreateRequestInput, DashboardEmployeeList, DashboardListCategory, DashboardStats, EmployeePayrollSummary, EmployeeProfile, EmployeeProfileInput,
   AttendanceCoverage, HRMSPolicySettings, HealthStatus, RulesDocument, LeaveBalance, LeaveType, OtAdjustments, Pagination, PayrollRunStatus, PolicyUpdate, PunchResult,
   PunchStatus, RawPunchResponse, SalaryBreakdown, SchedulerStatus, SendPayslipResponse, Site, SyncAllResult, SyncLogsResponse,
   SyncResult, TimesheetEmployee,
@@ -153,6 +153,7 @@ export const api = {
 
   // ---- attendance (one resolver, one verdict per employee-day)
   getDashboardStats: (params?: { date?: string; siteId?: string }) => get<DashboardStats>('/attendance/stats', params),
+  getDashboardEmployees: (params: { date?: string; siteId?: string; category: DashboardListCategory }) => get<DashboardEmployeeList>('/attendance/stats/employees', params),
   getAttendanceDays: (params: DayQuery) => getRaw<AttendanceDaysResponse>('/attendance/days', params),
   getAttendanceCalendar: (month: string, employeeCode: string) => get<AttendanceCalendar>('/attendance/calendar', { month, employeeCode }),
   getTimesheet: (params: { siteId?: string; fromDate: string; toDate: string; search?: string }) => get<TimesheetEmployee[]>('/attendance/timesheet', params),

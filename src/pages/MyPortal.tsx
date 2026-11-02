@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
-  Calendar as CalendarIcon, Clock, Download, FileText, Plus, Search, Send, Building2, DollarSign, CheckCircle2, CalendarCheck2, AlertCircle, X,
+  Calendar as CalendarIcon, Clock, Download, FileText, Plus, Search, Send, Building2, DollarSign, CheckCircle2, CalendarCheck2, AlertCircle, X, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { useDataVersion } from '../services/dataSync';
 import { errorMessage } from '../lib/apiError';
-import { formatBusinessDate, formatBusinessDay, istMonth, istToday, monthLabel } from '../lib/businessDate';
+import { addMonths, formatBusinessDate, formatBusinessDay, istMonth, istToday, monthLabel, monthOptions } from '../lib/businessDate';
 import { formatMinutes, metaFor } from '../lib/attendanceDisplay';
 import { inr } from '../lib/utils';
 import { EmployeePunchCard } from '../components/attendance/EmployeePunchCard';
@@ -39,8 +39,10 @@ const inputCls = 'w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-
 
 export const MyPortal: React.FC = () => {
   const { user, isSuperAdmin, isEmployee } = useAuth();
-  const month = istMonth();
+  const currentMonth = istMonth();
   const today = istToday();
+  const [month, setMonth] = useState(currentMonth);
+  const monthChoices = useMemo(() => monthOptions(24, currentMonth), [currentMonth]);
 
   const [allEmployees, setAllEmployees] = useState<EmployeeProfile[]>([]);
   const [selectedEmpCode, setSelectedEmpCode] = useState<string>(() => (isEmployee && user?.empCode ? user.empCode : ''));
@@ -50,6 +52,7 @@ export const MyPortal: React.FC = () => {
   const [profile, setProfile] = useState<EmployeeProfile | null>(null);
   const [payroll, setPayroll] = useState<EmployeePayrollSummary | null>(null);
   const [days, setDays] = useState<AttendanceDay[]>([]);
+  const [todayDay, setTodayDay] = useState<AttendanceDay | null>(null);
   const [requests, setRequests] = useState<AttendanceRegularizationRequest[]>([]);
   const [balance, setBalance] = useState<LeaveBalance | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -79,25 +82,32 @@ export const MyPortal: React.FC = () => {
     }).catch((e) => setLoadError(errorMessage(e)));
   }, [isEmployee]);
 
+  // Only the newest load may write state, so quickly flipping months or staff never shows an older response.
+  const loadSeq = useRef(0);
   const load = useCallback(async (empCode: string) => {
     if (!empCode) { setIsLoading(false); return; }
+    const seq = ++loadSeq.current;
     setIsLoading(true);
     setLoadError(null);
-    const settle = async <T,>(p: Promise<T>): Promise<T | null> => p.catch((e) => { setLoadError(errorMessage(e)); return null; });
-    const [prof, pay, cal, reqs, bal] = await Promise.all([
+    const settle = async <T,>(p: Promise<T>): Promise<T | null> => p.catch((e) => { if (seq === loadSeq.current) setLoadError(errorMessage(e)); return null; });
+    // "Today" always comes from the current month, even while an earlier month is on screen.
+    const [prof, pay, cal, reqs, bal, nowCal] = await Promise.all([
       settle(api.getEmployeeProfile(empCode)),
       settle(api.getEmployeePayroll(empCode, month)),
       settle(api.getAttendanceCalendar(month, empCode)),
       settle(api.getRequests({ empCode })),
       settle(api.getLeaveBalance(empCode)),
+      month === currentMonth ? Promise.resolve(null) : settle(api.getAttendanceCalendar(currentMonth, empCode)),
     ]);
+    if (seq !== loadSeq.current) return;
     setProfile(prof);
     setPayroll(pay);
     setDays(cal?.days ?? []);
+    setTodayDay((month === currentMonth ? cal : nowCal)?.days.find((d) => d.businessDate === today) ?? null);
     setRequests(reqs ?? []);
     setBalance(bal);
     setIsLoading(false);
-  }, [month]);
+  }, [month, currentMonth, today]);
 
   const dataVersion = useDataVersion();
   useEffect(() => { void load(selectedEmpCode); }, [selectedEmpCode, dataVersion, load]);
@@ -151,7 +161,7 @@ export const MyPortal: React.FC = () => {
   });
   const departments = Array.from(new Set(allEmployees.map((e) => e.department).filter(Boolean))) as string[];
 
-  const todayDay = days.find((d) => d.businessDate === today);
+  const isPastMonth = month !== currentMonth;
   const initials = (profile?.name || 'User').split(' ').filter(Boolean).slice(0, 2).map((n) => n[0]).join('').toUpperCase() || 'EM';
   const recorded = days.filter((d) => d.status !== null && (d.firstIn || d.lastOut || d.manualOverride || d.status === 'HOLIDAY' || d.status === 'WEEKLY_OFF' || d.status === 'ABSENT')).reverse();
   const hasSalary = !!payroll && payroll.monthlyCtc > 0;
@@ -242,6 +252,22 @@ export const MyPortal: React.FC = () => {
         </div>
       )}
 
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white rounded-2xl border border-slate-200/80 px-4 py-3 shadow-xs">
+        <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
+          <CalendarIcon className="w-4 h-4 text-[#1184b0]" />
+          <span>Viewing {monthLabel(month)}</span>
+          {isPastMonth && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">Past month</span>}
+        </div>
+        <div className="flex items-center gap-1.5">
+          <button type="button" aria-label="Previous month" disabled={month <= monthChoices[monthChoices.length - 1]} onClick={() => setMonth((m) => addMonths(m, -1))} className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed"><ChevronLeft className="w-4 h-4" /></button>
+          <select aria-label="Month" value={month} onChange={(e) => setMonth(e.target.value)} className="bg-slate-50 border border-slate-200 text-xs font-semibold rounded-xl px-3 py-2">
+            {monthChoices.map((m) => (<option key={m} value={m}>{monthLabel(m)}</option>))}
+          </select>
+          <button type="button" aria-label="Next month" disabled={!isPastMonth} onClick={() => setMonth((m) => addMonths(m, 1))} className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed"><ChevronRight className="w-4 h-4" /></button>
+          {isPastMonth && <button type="button" onClick={() => setMonth(currentMonth)} className="px-3 py-2 text-xs font-bold rounded-xl bg-[#1184b0] hover:bg-[#0d6c92] text-white">This month</button>}
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
         <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Payable Days</span>
@@ -285,13 +311,13 @@ export const MyPortal: React.FC = () => {
         <div className="space-y-6">
           <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-card space-y-4">
             <span className="font-heading font-bold text-slate-900 text-sm flex items-center gap-2"><CalendarIcon className="w-4 h-4 text-[#1184b0]" />{monthLabel(month)}</span>
-            <AttendanceCalendar days={days} />
+            <AttendanceCalendar days={days} showTimes />
           </div>
 
           <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-card space-y-4">
             <h2 className="text-sm font-heading font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3"><Clock className="w-4 h-4 text-[#1184b0]" /> Day-by-day record</h2>
             <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
-              {recorded.length === 0 && <p className="text-xs text-slate-400 text-center py-8">No attendance recorded this month yet.</p>}
+              {recorded.length === 0 && <p className="text-xs text-slate-400 text-center py-8">{isPastMonth ? 'No attendance recorded for this month.' : 'No attendance recorded this month yet.'}</p>}
               {recorded.map((d) => {
                 const meta = metaFor(d.status);
                 return (
@@ -524,7 +550,7 @@ export const MyPortal: React.FC = () => {
         </div>
       )}
 
-      {isPayslipOpen && <PayslipModal isOpen onClose={() => setIsPayslipOpen(false)} empCode={selectedEmpCode} />}
+      {isPayslipOpen && <PayslipModal isOpen onClose={() => setIsPayslipOpen(false)} empCode={selectedEmpCode} month={month} />}
       <DayAdjustmentModal isOpen={Boolean(dayModal)} onClose={() => setDayModal(null)} day={dayModal} />
     </div>
   );

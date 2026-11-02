@@ -9,6 +9,8 @@ interface AttendanceCalendarProps {
   days: AttendanceDay[];
   onSelectDay?: (day: AttendanceDay) => void;
   showLegend?: boolean;
+  /** Print the first IN and last OUT punch inside each day cell (taller cells). */
+  showTimes?: boolean;
 }
 
 /**
@@ -16,12 +18,13 @@ interface AttendanceCalendarProps {
  * absent is decided by the backend resolver, so this grid always matches the admin screens and payroll.
  * Clicking any day opens the action/adjustment modal allowing WFH, Leave, Missed Punch or OD override.
  */
-export const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({ days, onSelectDay, showLegend = true }) => {
+export const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({ days, onSelectDay, showLegend = true, showTimes = false }) => {
   const [modalDay, setModalDay] = useState<AttendanceDay | null>(null);
 
   if (days.length === 0) return <p className="text-xs text-slate-500">No calendar data.</p>;
   const lead = weekdayIndexMonFirst(days[0].businessDate);
   const today = istToday();
+  const cellHeight = showTimes ? 'min-h-[4.25rem] sm:min-h-[5rem]' : 'h-10 sm:h-12';
 
   const handleDayClick = (d: AttendanceDay) => {
     if (onSelectDay) {
@@ -49,7 +52,7 @@ export const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({ days, on
             <div key={d} className="text-center text-[11px] font-extrabold text-slate-400 uppercase py-1">{d}</div>
           ))}
           {Array.from({ length: lead }, (_, i) => (
-            <div key={`pad-${i}`} className="h-10 sm:h-12 rounded-xl bg-slate-50/40 border border-transparent" />
+            <div key={`pad-${i}`} className={`${cellHeight} rounded-xl bg-slate-50/40 border border-transparent`} />
           ))}
           {days.map((d) => {
             const meta = metaFor(d.status);
@@ -63,12 +66,17 @@ export const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({ days, on
                 type="button"
                 onClick={() => handleDayClick(d)}
                 title={title}
-                className={`h-10 sm:h-12 rounded-xl border flex flex-col items-center justify-center p-1 text-xs transition-all font-bold ${meta.cell} ${
+                className={`${cellHeight} rounded-xl border flex flex-col items-center justify-center p-1 text-xs transition-all font-bold ${meta.cell} ${
                   d.businessDate === today ? 'ring-2 ring-[#1184b0] ring-offset-1' : ''
                 } ${isClickable ? 'cursor-pointer hover:scale-105 hover:shadow-md' : 'cursor-default'}`}
               >
                 <span className="font-extrabold text-[13px] leading-none">{Number(d.businessDate.slice(8, 10))}</span>
                 <span className="text-[9px] opacity-90 uppercase tracking-wider leading-none mt-0.5">{d.inProgress ? 'IN' : meta.short}</span>
+                {showTimes && (d.firstIn || d.lastOut) && (
+                  <span className="font-mono font-semibold text-[8px] sm:text-[9px] leading-tight mt-0.5 opacity-90 text-center">
+                    {d.firstIn ?? '--:--'}<br />{d.lastOut ?? '--:--'}
+                  </span>
+                )}
               </button>
             );
           })}

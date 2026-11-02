@@ -232,6 +232,32 @@ export interface DashboardStats {
   bySite?: Record<string, Omit<DashboardStats, 'bySite'>>;
 }
 
+/** Which employees a dashboard card lists. `flags` = late arrivals + half days. */
+export type DashboardListCategory = 'all' | 'present' | 'absent' | 'flags';
+
+export interface DashboardEmployeeRow {
+  employeeCode: string;
+  employeeName: string;
+  department: string | null;
+  designation: string | null;
+  siteId: string | null;
+  siteName: string | null;
+  status: AttendanceStatus | null;
+  statusLabel: string;
+  firstIn: string | null;
+  lastOut: string | null;
+  workMinutes: number;
+  isLate: boolean;
+  lateMinutes: number;
+  inProgress: boolean;
+}
+
+export interface DashboardEmployeeList {
+  selectedDate: string;
+  category: DashboardListCategory;
+  rows: DashboardEmployeeRow[];
+}
+
 // ------------------------------------------------------------------ sync
 export type SyncStatus = 'RUNNING' | 'SUCCESS' | 'PARTIAL' | 'FAILED';
 export type SyncType = 'RAW' | 'INOUT';

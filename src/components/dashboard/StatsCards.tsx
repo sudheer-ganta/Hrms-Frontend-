@@ -5,16 +5,18 @@ import {
   UserX, 
   ClockAlert, 
 } from 'lucide-react';
-import { DashboardStats } from '../../types';
+import { DashboardStats, DashboardListCategory } from '../../types';
 import { formatBusinessDate, istToday } from '../../lib/businessDate';
 
 interface StatsCardsProps {
   stats: DashboardStats | null;
   isLoading: boolean;
   selectedDate?: string;
+  /** Called when a card is clicked: which group of employees to list, and the card's title. */
+  onSelectCard?: (category: DashboardListCategory, title: string) => void;
 }
 
-export const StatsCards: React.FC<StatsCardsProps> = ({ stats, isLoading, selectedDate }) => {
+export const StatsCards: React.FC<StatsCardsProps> = ({ stats, isLoading, selectedDate, onSelectCard }) => {
   const isToday = !selectedDate || selectedDate === istToday();
   const formattedDateLabel = selectedDate ? formatBusinessDate(selectedDate) : 'Today';
 
@@ -24,8 +26,12 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ stats, isLoading, select
   const noRoster = !!stats && stats.totalWorkforce === 0;
   const flagsTotal = stats ? stats.lateArrivalsCount + stats.halfDayCount : undefined;
 
-  const cards = [
+  const cards: Array<{
+    category: DashboardListCategory; title: string; value: string; subtitle: string; badge: string; badgeBg: string;
+    icon: typeof Users; iconBg: string; hoverBorder: string; glow: string;
+  }> = [
     {
+      category: 'all',
       title: 'Total Workforce',
       value: num(stats?.totalWorkforce),
       subtitle: noRoster ? 'No active employees yet' : 'Active employees in scope',
@@ -37,6 +43,7 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ stats, isLoading, select
       glow: 'from-sky-400/10 to-[#1184b0]/20',
     },
     {
+      category: 'present',
       title: isToday ? 'Present Today' : `Present (${formattedDateLabel})`,
       value: num(stats?.presentCount),
       subtitle: stats?.leaveCount ? `${stats.leaveCount} on paid leave, ${stats.weeklyOffCount} off` : `${stats?.weeklyOffCount ?? 0} off today`,
@@ -48,6 +55,7 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ stats, isLoading, select
       glow: 'from-emerald-400/10 to-teal-500/20',
     },
     {
+      category: 'absent',
       title: isToday ? 'Absent / Unaccounted' : `Absent (${formattedDateLabel})`,
       value: num(stats?.absentCount),
       subtitle: 'Working day, no valid attendance',
@@ -59,6 +67,7 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ stats, isLoading, select
       glow: 'from-rose-400/10 to-red-500/20',
     },
     {
+      category: 'flags',
       title: isToday ? 'Late Arrivals & Half Days' : `Late & Half Day (${formattedDateLabel})`,
       value: num(flagsTotal),
       subtitle: `${stats?.lateArrivalsCount ?? 0} late (after shift start + grace), ${stats?.halfDayCount ?? 0} half-day`,
@@ -78,7 +87,12 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ stats, isLoading, select
         return (
           <div
             key={idx}
-            className={`bg-white border border-slate-200/80 p-5 rounded-2xl relative overflow-hidden group ${card.hoverBorder} hover:shadow-soft transition-all shadow-card flex flex-col justify-between`}
+            role="button"
+            tabIndex={0}
+            title="Click to see the employees"
+            onClick={() => !isLoading && stats && onSelectCard?.(card.category, card.title)}
+            onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && !isLoading && stats) { e.preventDefault(); onSelectCard?.(card.category, card.title); } }}
+            className={`bg-white border border-slate-200/80 p-5 rounded-2xl relative overflow-hidden group ${card.hoverBorder} hover:shadow-soft transition-all shadow-card flex flex-col justify-between cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40`}
           >
             {/* Soft Ambient Glow */}
             <div

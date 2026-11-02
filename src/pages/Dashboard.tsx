@@ -6,7 +6,9 @@ import { LocationTabs } from '../components/layout/LocationTabs';
 import { ErrorAlert } from '../components/common/ErrorAlert';
 import { api, refreshApiData } from '../services/api';
 import { useDataVersion, useLastUpdatedTime } from '../services/dataSync';
-import { DashboardStats, AttendanceSource } from '../types';
+import { DashboardEmployeeModal } from '../components/dashboard/DashboardEmployeeModal';
+import { EmployeeDrawer } from '../components/employees/EmployeeDrawer';
+import { DashboardStats, DashboardListCategory, AttendanceSource } from '../types';
 import { addDays, formatBusinessDate, istToday } from '../lib/businessDate';
 import { errorMessage } from '../lib/apiError';
 import { 
@@ -43,6 +45,9 @@ export const Dashboard: React.FC<DashboardPageProps> = ({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const latestRequest = useRef(0);
+  // The card whose employees are listed, and the employee opened from that list.
+  const [cardList, setCardList] = useState<{ category: DashboardListCategory; title: string } | null>(null);
+  const [drawerEmployee, setDrawerEmployee] = useState<{ employeeCode: string; employeeName: string; siteName: string } | null>(null);
 
   const isToday = selectedDate === getTodayStr();
   const currentView = `${selectedDate}|${activeSourceId}`;
@@ -261,7 +266,27 @@ export const Dashboard: React.FC<DashboardPageProps> = ({
       )}
 
       {/* KPI Cards */}
-      <StatsCards stats={stats} isLoading={showSkeleton} selectedDate={selectedDate} />
+      <StatsCards
+        stats={stats}
+        isLoading={showSkeleton}
+        selectedDate={selectedDate}
+        onSelectCard={(category, title) => setCardList({ category, title })}
+      />
+
+      {cardList && (
+        <DashboardEmployeeModal
+          category={cardList.category}
+          title={`${cardList.title} · ${activeSourceName}`}
+          date={selectedDate}
+          siteId={siteId ?? 'all'}
+          onClose={() => setCardList(null)}
+          onSelectEmployee={(row) => {
+            setCardList(null);
+            setDrawerEmployee({ employeeCode: row.employeeCode, employeeName: row.employeeName, siteName: row.siteName ?? '' });
+          }}
+        />
+      )}
+      <EmployeeDrawer isOpen={!!drawerEmployee} onClose={() => setDrawerEmployee(null)} employee={drawerEmployee} />
 
       {/* Rich Charts & Graphs Section */}
       <AttendanceAnalyticsCharts 
