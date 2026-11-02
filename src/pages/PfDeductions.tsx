@@ -115,9 +115,9 @@ export const PfDeductions: React.FC<PfDeductionsProps> = ({ activeSourceId, sour
         <div>
           <h1 className="text-xl md:text-2xl font-heading font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
             <PiggyBank className="w-6 h-6 text-teal-500" />
-            <span>PF & Deductions</span>
+            <span>PF Deductions</span>
           </h1>
-          <p className="text-xs text-slate-500 mt-1">What is cut from each employee's pay and what the company pays on top, straight from the payroll engine.</p>
+          <p className="text-xs text-slate-500 mt-1">What is cut from each employee's pay for PF, and what the company pays on top.</p>
         </div>
         <button
           onClick={handleExport}

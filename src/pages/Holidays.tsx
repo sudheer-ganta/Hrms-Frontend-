@@ -108,10 +108,10 @@ export const Holidays: React.FC = () => {
         <div>
           <h1 className="text-xl md:text-2xl font-heading font-extrabold text-slate-900 tracking-tight flex items-center gap-2.5">
             <PartyPopper className="w-6 h-6 text-purple-600" />
-            <span>Corporate Paid Holidays & Calendar</span>
+            <span>Holidays</span>
           </h1>
           <p className="text-xs text-slate-500 font-sans mt-0.5">
-            Company-wide festival and national holidays. A paid holiday is a company day-off for everyone with <strong>0 Loss of Pay</strong>. An optional holiday is an ordinary working day unless it is marked as a paid day-off.
+            Company-wide festival and national holidays. A paid holiday is a day off for everyone, and no salary is cut. An optional holiday is an ordinary working day unless it is marked as a paid day-off.
           </p>
         </div>
 

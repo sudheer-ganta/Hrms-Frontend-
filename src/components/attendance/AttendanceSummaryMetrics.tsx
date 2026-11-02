@@ -31,16 +31,16 @@ export const AttendanceSummaryMetrics: React.FC<AttendanceSummaryMetricsProps> =
 
   const metrics = [
     {
-      label: 'Present Attendance',
+      label: 'Present',
       value: summary.presentCount.toLocaleString(),
-      subtext: `${presentPercentage}% Present Rate`,
+      subtext: `${presentPercentage}% came to work`,
       icon: CheckCircle2,
       accent: 'bg-emerald-100 text-emerald-600',
       glow: 'from-emerald-400/10 to-teal-500/20',
       borderHover: 'hover:border-emerald-500',
     },
     {
-      label: 'Absent / Unpaid',
+      label: 'Absent (no pay)',
       value: summary.absentCount.toLocaleString(),
       subtext: `${summary.halfDayCount} half-day, ${summary.leaveCount} on paid leave`,
       icon: XCircle,
@@ -49,18 +49,18 @@ export const AttendanceSummaryMetrics: React.FC<AttendanceSummaryMetricsProps> =
       borderHover: 'hover:border-rose-500',
     },
     {
-      label: 'Avg Daily Working Hours',
+      label: 'Average Hours Worked',
       value: avgHours,
-      subtext: `${summary.missedPunchCount} missed punch${summary.missedPunchCount === 1 ? '' : 'es'}`,
+      subtext: `${summary.missedPunchCount} with a missing punch`,
       icon: Clock,
       accent: 'bg-sky-100 text-brand-500',
       glow: 'from-sky-400/10 to-brand-500/20',
       borderHover: 'hover:border-brand-500',
     },
     {
-      label: 'Late Arrivals',
+      label: 'Came Late',
       value: summary.lateArrivalsCount.toLocaleString(),
-      subtext: 'First punch after shift start + grace',
+      subtext: 'First punch after shift start time',
       icon: Timer,
       accent: 'bg-amber-100 text-amber-600',
       glow: 'from-amber-400/10 to-orange-500/20',
@@ -81,7 +81,7 @@ export const AttendanceSummaryMetrics: React.FC<AttendanceSummaryMetricsProps> =
             
             <div className="flex items-start justify-between">
               <div>
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{item.label}</span>
+                <span className="text-sm font-bold text-slate-600">{item.label}</span>
                 <div className="text-2xl md:text-3xl font-heading font-extrabold text-slate-900 mt-1.5 tracking-tight">{item.value}</div>
               </div>
               <div className={`p-2.5 rounded-2xl ${item.accent} shadow-xs`}>

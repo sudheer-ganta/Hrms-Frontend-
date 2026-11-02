@@ -32,10 +32,10 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ stats, isLoading, select
   }> = [
     {
       category: 'all',
-      title: 'Total Workforce',
+      title: 'All Employees',
       value: num(stats?.totalWorkforce),
-      subtitle: noRoster ? 'No active employees yet' : 'Active employees in scope',
-      badge: 'Roster',
+      subtitle: noRoster ? 'No active employees yet' : 'Currently working in the company',
+      badge: '',
       badgeBg: 'text-brand-600 bg-sky-50 border border-sky-200/60',
       icon: Users,
       iconBg: 'bg-sky-100 text-[#1184b0]',
@@ -46,8 +46,8 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ stats, isLoading, select
       category: 'present',
       title: isToday ? 'Present Today' : `Present (${formattedDateLabel})`,
       value: num(stats?.presentCount),
-      subtitle: stats?.leaveCount ? `${stats.leaveCount} on paid leave, ${stats.weeklyOffCount} off` : `${stats?.weeklyOffCount ?? 0} off today`,
-      badge: `${pct(stats?.attendanceRate)} attendance`,
+      subtitle: stats?.leaveCount ? `${stats.leaveCount} on paid leave, ${stats.weeklyOffCount} weekly off` : `${stats?.weeklyOffCount ?? 0} weekly off`,
+      badge: `${pct(stats?.attendanceRate)} came`,
       badgeBg: 'text-emerald-700 bg-emerald-50 border border-emerald-200/60',
       icon: UserCheck,
       iconBg: 'bg-emerald-100 text-emerald-600',
@@ -56,9 +56,9 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ stats, isLoading, select
     },
     {
       category: 'absent',
-      title: isToday ? 'Absent / Unaccounted' : `Absent (${formattedDateLabel})`,
+      title: isToday ? 'Absent Today' : `Absent (${formattedDateLabel})`,
       value: num(stats?.absentCount),
-      subtitle: 'Working day, no valid attendance',
+      subtitle: 'Working day, no attendance recorded',
       badge: `${pct(stats?.absenteeismRate)} absent`,
       badgeBg: (stats?.absentCount ?? 0) > 0 ? 'text-rose-700 bg-rose-50 border border-rose-200/60' : 'text-slate-600 bg-slate-50',
       icon: UserX,
@@ -68,10 +68,10 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ stats, isLoading, select
     },
     {
       category: 'flags',
-      title: isToday ? 'Late Arrivals & Half Days' : `Late & Half Day (${formattedDateLabel})`,
+      title: isToday ? 'Late or Half Day' : `Late or Half Day (${formattedDateLabel})`,
       value: num(flagsTotal),
-      subtitle: `${stats?.lateArrivalsCount ?? 0} late (after shift start + grace), ${stats?.halfDayCount ?? 0} half-day`,
-      badge: (flagsTotal ?? 0) > 0 ? 'Shift Flags' : 'On Time',
+      subtitle: `${stats?.lateArrivalsCount ?? 0} came late, ${stats?.halfDayCount ?? 0} half-day`,
+      badge: (flagsTotal ?? 0) > 0 ? 'Check these' : 'All on time',
       badgeBg: (flagsTotal ?? 0) > 0 ? 'text-amber-700 bg-amber-50 border border-amber-200/60' : 'text-emerald-700 bg-emerald-50',
       icon: ClockAlert,
       iconBg: 'bg-amber-100 text-amber-600',
@@ -89,7 +89,7 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ stats, isLoading, select
             key={idx}
             role="button"
             tabIndex={0}
-            title="Click to see the employees"
+            title="Click to see the names"
             onClick={() => !isLoading && stats && onSelectCard?.(card.category, card.title)}
             onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && !isLoading && stats) { e.preventDefault(); onSelectCard?.(card.category, card.title); } }}
             className={`bg-white border border-slate-200/80 p-5 rounded-2xl relative overflow-hidden group ${card.hoverBorder} hover:shadow-soft transition-all shadow-card flex flex-col justify-between cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40`}
@@ -101,7 +101,7 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ stats, isLoading, select
 
             <div>
               <div className="flex justify-between items-start mb-3">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider font-heading">
+                <span className="text-sm font-bold text-slate-600 font-heading">
                   {card.title}
                 </span>
                 <div className={`p-2.5 rounded-2xl ${card.iconBg} shadow-xs`}>

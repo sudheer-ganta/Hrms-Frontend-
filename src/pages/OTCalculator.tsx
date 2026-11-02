@@ -496,14 +496,14 @@ export const OTCalculator: React.FC<OTCalculatorProps> = ({
         <div>
           <h1 className="text-xl md:text-2xl font-heading font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
             <Calculator className="w-6 h-6 text-indigo-500" />
-            <span>OT Calculator & Payroll</span>
+            <span>Overtime Pay</span>
             <span className="ml-2 text-[10px] font-bold px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200 uppercase tracking-wider">
-              Unified Engine
+              Payroll
             </span>
           </h1>
           <p className="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-            Live sync with Official Payroll Engine — edit hours or multiplier, and save to update Payslips & Employee Portal
+            Overtime hours and pay for each employee. Changes you save here appear in payslips.
           </p>
         </div>
 

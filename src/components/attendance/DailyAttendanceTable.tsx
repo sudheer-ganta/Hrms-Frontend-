@@ -65,9 +65,9 @@ export const DailyAttendanceTable: React.FC<DailyAttendanceTableProps> = ({
       ) : records.length === 0 ? (
         <div className="p-6">
           <EmptyState
-            title="No Check-In / Check-Out Records Found"
-            description="Select a different date range on the calendar or click 'Sync Attendance'."
-            actionLabel="Sync Attendance"
+            title="No attendance found"
+            description="Pick a different date, or click 'Get Latest Punches'."
+            actionLabel="Get Latest Punches"
             onAction={onSyncTrigger}
           />
         </div>
@@ -83,7 +83,7 @@ export const DailyAttendanceTable: React.FC<DailyAttendanceTableProps> = ({
                   <th className="py-3.5 px-4">Check-In</th>
                   <th className="py-3.5 px-4">Check-Out</th>
                   <th className="py-3.5 px-4">Work Hours</th>
-                  <th className="py-3.5 px-4">Late In</th>
+                  <th className="py-3.5 px-4">Late By</th>
                   <th className="py-3.5 px-4 text-center">Status</th>
                   <th className="py-3.5 px-4">Source</th>
                 </tr>

@@ -51,7 +51,7 @@ export const AttendanceFilterBar: React.FC<AttendanceFilterBarProps> = ({
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Search employee name or code (e.g. 0001, Jignesh)..."
+            placeholder="Search by name or ID"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             className="w-full bg-slate-50 border border-slate-200 focus:border-brand-500 focus:bg-white rounded-xl pl-9 pr-8 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none transition-all"
@@ -135,7 +135,7 @@ export const AttendanceFilterBar: React.FC<AttendanceFilterBarProps> = ({
             className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-brand-500 to-brand-base hover:opacity-95 text-white text-xs font-heading font-bold rounded-xl shadow-md shadow-brand-500/20 transition-all active:scale-95"
           >
             <RefreshCw className="w-3.5 h-3.5" />
-            <span>Sync Now</span>
+            <span>Get Latest Punches</span>
           </button>
         </div>
       </div>

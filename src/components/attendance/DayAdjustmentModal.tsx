@@ -193,7 +193,7 @@ export const DayAdjustmentModal: React.FC<DayAdjustmentModalProps> = ({
           {/* Current Day Status Card */}
           <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Current Attendance Status</span>
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Status Now</span>
               <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${meta.badge}`}>
                 {day.statusLabel || 'Upcoming'}
               </span>
@@ -229,7 +229,7 @@ export const DayAdjustmentModal: React.FC<DayAdjustmentModalProps> = ({
             {day.manualOverride && (
               <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl flex items-center justify-between gap-3">
                 <div className="text-[11px] text-indigo-900 font-medium">
-                  <strong>Manual override active</strong>: This day was manually modified from system calculation.
+                  <strong>Changed by hand</strong>: this day was edited and is not the machine result.
                 </div>
                 {!isEmployee && (
                   <button
@@ -260,7 +260,7 @@ export const DayAdjustmentModal: React.FC<DayAdjustmentModalProps> = ({
                 {[
                   { id: 'WFH', label: 'WFH', icon: Home, color: 'text-teal-600' },
                   { id: 'LEAVE', label: 'Leave', icon: Palmtree, color: 'text-sky-600' },
-                  { id: 'MISSED_PUNCH', label: 'Punch', icon: Clock, color: 'text-amber-600' },
+                  { id: 'MISSED_PUNCH', label: 'Missed Punch', icon: Clock, color: 'text-amber-600' },
                   { id: 'ON_DUTY', label: 'On Duty', icon: Building, color: 'text-indigo-600' },
                 ].map((act) => {
                   const Icon = act.icon;
@@ -364,12 +364,12 @@ export const DayAdjustmentModal: React.FC<DayAdjustmentModalProps> = ({
                 )}
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Reason / Note</label>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Reason</label>
                   <input
                     type="text"
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
-                    placeholder="Provide reason for this override..."
+                    placeholder="Write the reason"
                     className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500"
                   />
                 </div>

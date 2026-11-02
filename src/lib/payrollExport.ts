@@ -39,7 +39,7 @@ export const buildPayrollTimesheetCsv = (
   generatedAt: string = new Date().toLocaleString('en-GB', { timeZone: 'Asia/Kolkata' })
 ): string => {
   const rows: string[] = [];
-  rows.push(['ColorMyles HRMS: Attendance, Overtime & Salary Matrix'].map(escapeCsv).join(','));
+  rows.push(['ColorMyles: Payroll Sheet (attendance, overtime and salary)'].map(escapeCsv).join(','));
   rows.push([`Range: ${monthLabel}`, `Generated At: ${generatedAt} IST`].map(escapeCsv).join(','));
   rows.push('');
 
@@ -85,7 +85,7 @@ export const exportPayrollTimesheetCSV = (
   monthLabel: string = 'Selected Range',
   payrollSummaries: Record<string, EmployeePayrollSummary> = {}
 ): void => {
-  downloadCsvFile(buildPayrollTimesheetCsv(timesheets, days, monthLabel, payrollSummaries), `ColorMyles_Master_Payroll_${monthLabel.replace(/\s+/g, '_')}_${Date.now()}.csv`);
+  downloadCsvFile(buildPayrollTimesheetCsv(timesheets, days, monthLabel, payrollSummaries), `ColorMyles_Payroll_Sheet_${monthLabel.replace(/[\s,]+/g, '_')}.csv`);
 };
 
 /** Daily attendance detail (one row per employee-day, backend verdicts). */

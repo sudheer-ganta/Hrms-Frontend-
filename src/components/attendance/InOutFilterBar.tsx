@@ -6,7 +6,7 @@ import {
   Download, 
   X
 } from 'lucide-react';
-import { addDays, istToday } from '../../lib/businessDate';
+import { addDays, addMonths, daysInMonth, istMonth, istToday } from '../../lib/businessDate';
 import { ATTENDANCE_STATUSES } from '../../types';
 import { STATUS_META } from '../../lib/attendanceDisplay';
 
@@ -23,6 +23,10 @@ interface InOutFilterBarProps {
   onSyncNow: () => void;
   onExportCSV: () => void;
   isRefreshing?: boolean;
+  /** Text of the download button. Both Attendance lists download the same In/Out Excel report. */
+  exportLabel?: string;
+  /** True while the download is being prepared (the Excel file collects every punch first). */
+  isExporting?: boolean;
 }
 
 export const InOutFilterBar: React.FC<InOutFilterBarProps> = ({
@@ -38,8 +42,10 @@ export const InOutFilterBar: React.FC<InOutFilterBarProps> = ({
   onSyncNow,
   onExportCSV,
   isRefreshing,
+  exportLabel = 'Download Excel',
+  isExporting,
 }) => {
-  const setQuickRange = (type: 'today' | 'yesterday' | 'week' | 'month') => {
+  const setQuickRange = (type: 'today' | 'yesterday' | 'week' | 'lastMonth') => {
     // IST business dates (never the browser's local or UTC date).
     const today = istToday();
     if (type === 'today') {
@@ -52,9 +58,11 @@ export const InOutFilterBar: React.FC<InOutFilterBarProps> = ({
     } else if (type === 'week') {
       onFromDateChange(addDays(today, -7));
       onToDateChange(today);
-    } else if (type === 'month') {
-      onFromDateChange(`${today.slice(0, 7)}-01`);
-      onToDateChange(today);
+    } else if (type === 'lastMonth') {
+      // The whole previous calendar month, first day to last day: the range payroll is run for.
+      const days = daysInMonth(addMonths(istMonth(), -1));
+      onFromDateChange(days[0]);
+      onToDateChange(days[days.length - 1]);
     }
   };
 
@@ -67,7 +75,7 @@ export const InOutFilterBar: React.FC<InOutFilterBarProps> = ({
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Search employee name or code..."
+            placeholder="Search by name or ID"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             className="w-full bg-slate-50 border border-slate-200 focus:border-brand-500 focus:bg-white rounded-xl pl-9 pr-8 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none transition-all"
@@ -107,10 +115,10 @@ export const InOutFilterBar: React.FC<InOutFilterBarProps> = ({
           </button>
           <button
             type="button"
-            onClick={() => setQuickRange('month')}
+            onClick={() => setQuickRange('lastMonth')}
             className="px-3 py-1.5 text-[11px] font-semibold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-white transition-all shadow-xs"
           >
-            This Month
+            Last Month
           </button>
         </div>
 
@@ -121,7 +129,7 @@ export const InOutFilterBar: React.FC<InOutFilterBarProps> = ({
             onClick={onRefresh}
             disabled={isRefreshing}
             className="p-2 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-600 hover:text-slate-900 rounded-xl transition-all shadow-xs"
-            title="Refresh Attendance Table"
+            title="Reload"
           >
             <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-brand-500' : ''}`} />
           </button>
@@ -129,11 +137,12 @@ export const InOutFilterBar: React.FC<InOutFilterBarProps> = ({
           <button
             type="button"
             onClick={onExportCSV}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-semibold transition-all shadow-xs"
-            title="Export CSV"
+            disabled={isExporting}
+            className="inline-flex items-center gap-1.5 disabled:opacity-60 px-3.5 py-2 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-semibold transition-all shadow-xs"
+            title={exportLabel}
           >
             <Download className="w-3.5 h-3.5 text-slate-500" />
-            <span className="hidden sm:inline">Export CSV</span>
+            <span className="hidden sm:inline">{isExporting ? 'Preparing…' : exportLabel}</span>
           </button>
 
           <button
@@ -142,7 +151,7 @@ export const InOutFilterBar: React.FC<InOutFilterBarProps> = ({
             className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-brand-500 to-brand-base hover:opacity-95 text-white text-xs font-heading font-bold rounded-xl shadow-md shadow-brand-500/20 transition-all active:scale-95"
           >
             <RefreshCw className="w-3.5 h-3.5" />
-            <span>Sync Attendance</span>
+            <span>Get Latest Punches</span>
           </button>
         </div>
       </div>
@@ -176,13 +185,13 @@ export const InOutFilterBar: React.FC<InOutFilterBarProps> = ({
 
         {/* Status Filter */}
         <div className="flex items-center gap-2">
-          <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">Status:</span>
+          <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">Show:</span>
           <select
             value={statusFilter}
             onChange={(e) => onStatusFilterChange(e.target.value)}
             className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-800 font-semibold focus:outline-none focus:border-brand-500"
           >
-            <option value="all">All Statuses</option>
+            <option value="all">Everyone</option>
             {ATTENDANCE_STATUSES.map((st) => (
               <option key={st} value={st}>{STATUS_META[st].label}</option>
             ))}

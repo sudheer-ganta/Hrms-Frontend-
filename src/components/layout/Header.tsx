@@ -82,7 +82,7 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="flex items-center space-x-2 sm:space-x-3">
         {/* Live DB Connection & Clock */}
         <div className="hidden lg:flex items-center space-x-2 text-xs bg-slate-100/90 border border-slate-200/80 px-3 py-1.5 rounded-xl text-slate-700 font-medium font-mono">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Live automatic data sync connected" />
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Updating automatically" />
           <Clock className="w-3.5 h-3.5 text-[#1184b0]" />
           <span>{time || 'Loading...'}</span>
         </div>
@@ -91,11 +91,11 @@ export const Header: React.FC<HeaderProps> = ({
         {!isEmployee && (
           <button
             onClick={onOpenSync}
-            className="flex items-center space-x-1.5 sm:space-x-2 text-xs font-semibold bg-gradient-to-r from-[#1184b0] to-[#011638] hover:opacity-95 text-white px-2.5 sm:px-3.5 py-1.5 rounded-xl transition-all shadow-md shadow-[#1184b0]/20 active:scale-95"
-            title="Pull latest punches from external biometric hardware into MongoDB. Regular HRMS data updates automatically."
+            className="flex items-center space-x-1.5 sm:space-x-2 whitespace-nowrap text-xs font-semibold bg-gradient-to-r from-[#1184b0] to-[#011638] hover:opacity-95 text-white px-2.5 sm:px-3.5 py-1.5 rounded-xl transition-all shadow-md shadow-[#1184b0]/20 active:scale-95"
+            title="Collect the latest punches from the attendance machines. Everything else updates by itself."
           >
             <RefreshCw className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Sync Devices</span>
+            <span className="hidden sm:inline">Get Latest Punches</span>
           </button>
         )}
 

@@ -35,7 +35,7 @@ export const FUTURE_META: StatusMeta = {
 export const metaFor = (status: AttendanceStatus | null | undefined): StatusMeta => (status ? STATUS_META[status] : FUTURE_META);
 
 /** Legend order shown under calendars. */
-export const LEGEND: AttendanceStatus[] = ['PRESENT', 'HALF_DAY', 'ABSENT', 'LEAVE_PAID', 'WORK_FROM_HOME', 'ON_DUTY', 'MISSED_PUNCH', 'HOLIDAY', 'WEEKLY_OFF'];
+export const LEGEND: AttendanceStatus[] = ['PRESENT', 'HALF_DAY', 'ABSENT', 'LEAVE_PAID', 'LEAVE_UNPAID', 'WORK_FROM_HOME', 'ON_DUTY', 'MISSED_PUNCH', 'HOLIDAY', 'WEEKLY_OFF'];
 
 export const formatMinutes = (minutes: number | null | undefined): string => {
   if (!minutes || minutes <= 0) return '00:00';

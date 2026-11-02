@@ -181,10 +181,10 @@ export const Employees: React.FC<EmployeesPageProps> = ({
         <div>
           <h1 className="text-xl md:text-2xl font-heading font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
             <Users className="w-6 h-6 text-[#1184b0]" />
-            <span>Employee Directory & Compensation</span>
+            <span>Employees & Salary</span>
           </h1>
           <p className="text-xs text-slate-500 font-sans mt-0.5">
-            Manage employee personal profiles, DOB, official emails, CTC salary structures, and 1-click payslips
+            Employee details, monthly salary and payslips
           </p>
         </div>
 
@@ -199,7 +199,7 @@ export const Employees: React.FC<EmployeesPageProps> = ({
             onClick={() => { refreshApiData(); loadData(); }}
             disabled={isLoading}
             className="p-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-brand-500 rounded-xl transition-all shadow-xs flex items-center gap-1.5 text-xs font-semibold"
-            title="Refresh Directory from MongoDB"
+            title="Reload the employee list"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-brand-500' : ''}`} />
             <span className="hidden sm:inline">Refresh Data</span>
@@ -216,10 +216,10 @@ export const Employees: React.FC<EmployeesPageProps> = ({
           <button
             onClick={() => onOpenSync(activeSourceId !== 'all' ? activeSourceId : undefined)}
             className="px-3.5 py-2 text-xs font-semibold text-white bg-[#1184b0] hover:bg-[#0d6c92] rounded-xl shadow-xs flex items-center gap-1.5 transition"
-            title="Pull new enrolled employee records and punches from external hardware"
+            title="Collect new employees and punches from the attendance machines"
           >
             <UserCheck className="w-4 h-4" />
-            <span>Sync Hardware</span>
+            <span>Get Latest Punches</span>
           </button>
         </div>
       </div>
@@ -265,7 +265,7 @@ export const Employees: React.FC<EmployeesPageProps> = ({
             <EmptyState
               title="No Employees Found"
               description="No employee records match the selected location or search query."
-              actionLabel="Sync Biometrics Now"
+              actionLabel="Get Latest Punches"
               onAction={() => onOpenSync(activeSourceId !== 'all' ? activeSourceId : undefined)}
             />
           </div>
@@ -274,16 +274,16 @@ export const Employees: React.FC<EmployeesPageProps> = ({
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-bold border-b border-slate-200 text-[10px]">
                 <tr>
-                  <th className="py-3.5 px-4 whitespace-nowrap">Emp ID</th>
-                  <th className="py-3.5 px-4">Employee Details</th>
-                  <th className="py-3.5 px-4">Department / Role</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">ID</th>
+                  <th className="py-3.5 px-4">Name</th>
+                  <th className="py-3.5 px-4">Job</th>
                   <th className="py-3.5 px-4 whitespace-nowrap">DOB</th>
                   <th className="py-3.5 px-4 whitespace-nowrap">Shift</th>
                   <th className="py-3.5 px-4 whitespace-nowrap text-center">OT</th>
                   <th className="py-3.5 px-4 whitespace-nowrap">Location</th>
-                  <th className="py-3.5 px-4 whitespace-nowrap">Monthly CTC</th>
-                  <th className="py-3.5 px-4 whitespace-nowrap">Attendance (MTD)</th>
-                  <th className="py-3.5 px-4 whitespace-nowrap">Est. Net Pay</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">Monthly Salary</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">Present This Month</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">Expected Take-home</th>
                   <th className="py-3.5 px-4 text-center whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
@@ -451,7 +451,7 @@ export const Employees: React.FC<EmployeesPageProps> = ({
                               })
                             }
                             className="p-1.5 rounded-lg text-slate-500 hover:text-[#1184b0] hover:bg-sky-50 border border-slate-200 transition"
-                            title="View 360 Attendance & Timeline"
+                            title="See attendance details"
                           >
                             <Eye className="w-3.5 h-3.5" />
                           </button>

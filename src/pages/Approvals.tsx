@@ -140,16 +140,16 @@ export const Approvals: React.FC = () => {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-heading font-extrabold text-slate-900">
-                Approvals & Leave Requests Hub
+                Leave Requests
               </h1>
               {pendingCount > 0 && (
                 <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200 animate-pulse">
-                  {pendingCount} Pending Action
+                  {pendingCount} waiting for you
                 </span>
               )}
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              Review and 1-click approve employee leave applications, missed punch regularizations, and on-duty requests.
+              Approve or reject leave, missed punch and on-duty requests from employees.
             </p>
           </div>
         </div>

@@ -179,7 +179,7 @@ export const MyPortal: React.FC = () => {
               <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-sky-400/20 text-sky-200 border border-sky-400/30">
                 {isSuperAdmin ? 'Super Admin Mode' : 'Founder Mode'}
               </span>
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white font-heading mt-2">Staff 360° Inspector: {profile?.name ?? selectedEmpCode}</h1>
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white font-heading mt-2">Employee Details: {profile?.name ?? selectedEmpCode}</h1>
               <p className="text-xs text-sky-100/80 font-medium mt-0.5">Attendance, leave balance, overtime and salary breakdown for any staff member.</p>
             </div>
             <div className="bg-white/95 rounded-2xl p-3 border border-white/20 shadow-lg flex flex-col md:flex-row items-center gap-2.5 text-slate-800">
@@ -209,7 +209,7 @@ export const MyPortal: React.FC = () => {
             <div>
               <h1 className="text-lg font-heading font-extrabold text-slate-900">Welcome, {profile?.name ?? user?.name}</h1>
               <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 font-medium mt-1">
-                <span className="font-mono font-bold text-[#1184b0]">Emp ID: {selectedEmpCode}</span>
+                <span className="font-mono font-bold text-[#1184b0]">ID: {selectedEmpCode}</span>
                 {profile?.department && (<><span>•</span><span>{profile.department}</span></>)}
                 {profile?.designation && (<><span>•</span><span>{profile.designation}</span></>)}
               </div>

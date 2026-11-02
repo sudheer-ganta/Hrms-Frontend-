@@ -49,3 +49,9 @@
     -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }
 }
+
+/* Bigger small text: the smallest sizes used across the screens were hard to read for many managers. */
+.text-xs { font-size: 0.8125rem; line-height: 1.15rem; }
+.text-\[9px\] { font-size: 0.6875rem; }
+.text-\[10px\] { font-size: 0.75rem; }
+.text-\[11px\] { font-size: 0.8125rem; }

@@ -4,14 +4,12 @@ import { InOutFilterBar } from '../components/attendance/InOutFilterBar';
 import { AttendanceSummaryMetrics } from '../components/attendance/AttendanceSummaryMetrics';
 import { DailyAttendanceTable } from '../components/attendance/DailyAttendanceTable';
 import { TimesheetMatrix } from '../components/attendance/TimesheetMatrix';
-import { AttendanceTable } from '../components/attendance/AttendanceTable';
-import { AttendanceFilterBar } from '../components/attendance/AttendanceFilterBar';
 import { ErrorAlert } from '../components/common/ErrorAlert';
 import { api, refreshApiData } from '../services/api';
 import { useDataVersion, useLastUpdatedTime } from '../services/dataSync';
 import { errorMessage } from '../lib/apiError';
 import { datesBetween, istToday } from '../lib/businessDate';
-import { formatMinutes } from '../lib/attendanceDisplay';
+import { downloadAttendanceSheet, groupPunches } from '../lib/attendanceSheetExport';
 import {
   AttendanceDay,
   AttendanceSummary,
@@ -22,7 +20,7 @@ import {
   EmployeePayrollSummary,
   AttendanceStatus,
 } from '../types';
-import { CalendarCheck2, Clock, Table2, Fingerprint, RefreshCw } from 'lucide-react';
+import { CalendarCheck2, Clock, Table2, RefreshCw } from 'lucide-react';
 
 interface AttendancePageProps {
   sources: AttendanceSource[];
@@ -31,21 +29,8 @@ interface AttendancePageProps {
   onOpenSync: (sourceId?: string) => void;
 }
 
-const downloadCsv = (filename: string, headers: string[], rows: (string | number)[][]) => {
-  const q = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
-  const csv = [headers.map(q).join(','), ...rows.map((r) => r.map(q).join(','))].join('\r\n');
-  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-};
-
 export const Attendance: React.FC<AttendancePageProps> = ({ sources, activeSourceId, onSelectSource, onOpenSync }) => {
-  const [activeTab, setActiveTab] = useState<'daily' | 'timesheet' | 'raw'>('daily');
+  const [activeTab, setActiveTab] = useState<'daily' | 'timesheet'>('daily');
 
   // Daily view: one resolved row per employee per date
   const [dayRows, setDayRows] = useState<AttendanceDay[]>([]);
@@ -57,17 +42,13 @@ export const Attendance: React.FC<AttendancePageProps> = ({ sources, activeSourc
   const [timesheetDates, setTimesheetDates] = useState<string[]>([]);
   const [payrollSummaries, setPayrollSummaries] = useState<Record<string, EmployeePayrollSummary>>({});
 
-  // Raw punches
-  const [rawRecords, setRawRecords] = useState<RawPunch[]>([]);
-  const [rawPagination, setRawPagination] = useState<Pagination>({ page: 1, limit: 50, total: 0, totalPages: 1 });
-
   const [fromDate, setFromDate] = useState<string>(() => istToday());
   const [toDate, setToDate] = useState<string>(() => istToday());
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [machineId, setMachineId] = useState<string>('');
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   const siteId = activeSourceId !== 'all' ? activeSourceId : undefined;
@@ -106,61 +87,61 @@ export const Attendance: React.FC<AttendancePageProps> = ({ sources, activeSourc
       for (const p of payroll) map[p.empCode] = p;
       setPayrollSummaries(map);
     } catch (err) {
-      setError(errorMessage(err, 'Failed to load timesheet matrix'));
+      setError(errorMessage(err, 'Failed to load the monthly sheet'));
     } finally {
       setIsLoading(false);
     }
   }, [siteId, fromDate, toDate, searchQuery]);
 
-  const fetchRawPunches = useCallback(async (page = 1, limit = rawPagination.limit) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const res = await api.getRawPunches({
-        sourceId: activeSourceId !== 'all' ? activeSourceId : undefined, fromDate, toDate,
-        search: searchQuery.trim() || undefined, machineId: machineId.trim() || undefined, page, limit,
-      });
-      setRawRecords(res.data);
-      setRawPagination(res.pagination);
-    } catch (err) {
-      setError(errorMessage(err, 'Failed to load raw punch records'));
-    } finally {
-      setIsLoading(false);
-    }
-  }, [activeSourceId, fromDate, toDate, searchQuery, machineId, rawPagination.limit]);
-
   const dataVersion = useDataVersion();
   const lastUpdated = useLastUpdatedTime();
   useEffect(() => {
     if (activeTab === 'daily') fetchDays(1, dayPagination.limit);
-    else if (activeTab === 'timesheet') fetchTimesheet();
-    else fetchRawPunches(1, rawPagination.limit);
+    else fetchTimesheet();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, activeSourceId, fromDate, toDate, searchQuery, statusFilter, machineId, dataVersion]);
+  }, [activeTab, activeSourceId, fromDate, toDate, searchQuery, statusFilter, dataVersion]);
 
-  const handleExportCSV = () => {
-    if (activeTab === 'daily') {
-      if (dayRows.length === 0) return;
-      downloadCsv(
-        `ColorMyles_Attendance_${activeSourceId}_${fromDate}_to_${toDate}.csv`,
-        ['Employee Code', 'Employee Name', 'Location', 'Date', 'Check In', 'Check Out', 'Work Time', 'Overtime', 'Late (min)', 'Status', 'Source'],
-        dayRows.map((r) => [
-          r.employeeCode, r.employeeName, r.siteName ?? '', r.businessDate, r.firstIn ?? '', r.lastOut ?? '',
-          formatMinutes(r.workMinutes), formatMinutes(r.overtimeMinutes), r.isLate ? r.lateMinutes : 0, r.statusLabel,
-          r.manualOverride ? 'Approved request' : r.origins.join('+'),
-        ])
-      );
-    } else if (activeTab === 'timesheet') {
-      if (timesheets.length === 0) return;
-      downloadCsv(
-        `ColorMyles_Timesheet_${activeSourceId}_${fromDate}_to_${toDate}.csv`,
-        ['Employee Code', 'Employee Name', 'Location', 'Present', 'Half Days', 'Paid Leave', 'Absent', 'Work Hours', ...timesheetDates],
-        timesheets.map((t) => [
-          t.employeeCode, t.employeeName, t.siteName ?? '', t.totals.presentDays, t.totals.halfDays, t.totals.leaveDays, t.totals.absentDays,
-          formatMinutes(t.totals.workMinutes), ...timesheetDates.map((d) => t.days[d]?.statusLabel ?? ''),
-        ])
-      );
+  // Every machine punch in the range, so the Excel file can show lunch and other break punches (Out1 to In8).
+  const fetchAllPunches = async (sheets: TimesheetEmployee[]): Promise<RawPunch[]> => {
+    const PAGE = 200;
+    const base = { fromDate, toDate, limit: PAGE };
+    // A search for one or a few people only needs their own punches.
+    const codes = sheets.length <= 3 ? sheets.map((t) => t.employeeCode) : [undefined];
+    const all: RawPunch[] = [];
+    for (const employeeCode of codes) {
+      const first = await api.getRawPunches({ ...base, employeeCode, page: 1 });
+      all.push(...first.data);
+      const pages = Array.from({ length: Math.max(0, first.pagination.totalPages - 1) }, (_, i) => i + 2);
+      for (let i = 0; i < pages.length; i += 4) {
+        const batch = await Promise.all(pages.slice(i, i + 4).map((page) => api.getRawPunches({ ...base, employeeCode, page })));
+        for (const res of batch) all.push(...res.data);
+      }
     }
+    return all;
+  };
+
+  // Both the Daily list and the Monthly Sheet download the same In/Out report: one block per employee, one row per date.
+  const exportInOutSheet = async () => {
+    setIsExporting(true);
+    try {
+      // The daily list is paged and can be filtered by status; the report always covers everyone in the range.
+      const sheets = activeTab === 'timesheet'
+        ? timesheets
+        : await api.getTimesheet({ siteId, fromDate, toDate, search: searchQuery.trim() || undefined });
+      if (sheets.length === 0) return;
+      const punches = groupPunches(await fetchAllPunches(sheets));
+      await downloadAttendanceSheet(sheets, datesBetween(fromDate, toDate), punches);
+    } catch (err) {
+      setError(errorMessage(err, 'Could not create the Excel file'));
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExport = () => {
+    if (activeTab === 'daily' && dayRows.length === 0) return;
+    if (activeTab === 'timesheet' && timesheets.length === 0) return;
+    void exportInOutSheet();
   };
 
   return (
@@ -171,10 +152,10 @@ export const Attendance: React.FC<AttendancePageProps> = ({ sources, activeSourc
           <div>
             <h1 className="text-xl md:text-2xl font-heading font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
               <CalendarCheck2 className="w-6 h-6 text-brand-500" />
-              <span>ColorMyles Attendance & Work Hours Hub</span>
+              <span>Attendance</span>
             </h1>
             <p className="text-xs text-slate-500 font-sans mt-0.5">
-              Daily Check-In/Out records, automated hours calculation, overtime, and monthly timesheets
+              Who came, when they came and left, and how many hours they worked
             </p>
           </div>
 
@@ -189,15 +170,14 @@ export const Attendance: React.FC<AttendancePageProps> = ({ sources, activeSourc
               onClick={() => {
                 refreshApiData();
                 if (activeTab === 'daily') fetchDays(dayPagination.page, dayPagination.limit);
-                else if (activeTab === 'timesheet') fetchTimesheet();
-                else fetchRawPunches(rawPagination.page, rawPagination.limit);
+                else fetchTimesheet();
               }}
               disabled={isLoading}
               className="p-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-brand-500 rounded-xl transition-all shadow-xs flex items-center gap-1.5 text-xs font-semibold"
-              title="Reload attendance data from MongoDB"
+              title="Reload attendance"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-brand-500' : ''}`} />
-              <span className="hidden sm:inline">Refresh Data</span>
+              <span className="hidden sm:inline">Refresh</span>
             </button>
           </div>
         </div>
@@ -222,7 +202,7 @@ export const Attendance: React.FC<AttendancePageProps> = ({ sources, activeSourc
           }`}
         >
           <Clock className="w-4 h-4" />
-          <span>Daily Check-In / Out & Work Hours</span>
+          <span>Daily Attendance</span>
         </button>
 
         <button
@@ -235,61 +215,32 @@ export const Attendance: React.FC<AttendancePageProps> = ({ sources, activeSourc
           }`}
         >
           <Table2 className="w-4 h-4" />
-          <span>Work Hours Timesheet Matrix</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('raw')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-heading font-bold transition-all ${
-            activeTab === 'raw'
-              ? 'bg-gradient-to-r from-brand-500 to-brand-base text-white shadow-md shadow-brand-500/20'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-          }`}
-        >
-          <Fingerprint className="w-4 h-4" />
-          <span>Raw Biometric Swipes</span>
+          <span>Monthly Sheet</span>
         </button>
       </div>
 
       {/* Filter Bar */}
-      {activeTab === 'raw' ? (
-        <AttendanceFilterBar
-          fromDate={fromDate}
-          toDate={toDate}
-          searchQuery={searchQuery}
-          machineId={machineId}
-          onFromDateChange={setFromDate}
-          onToDateChange={setToDate}
-          onSearchChange={setSearchQuery}
-          onMachineIdChange={setMachineId}
-          onRefresh={() => { refreshApiData(); fetchRawPunches(rawPagination.page, rawPagination.limit); }}
-          onSyncNow={() => onOpenSync(activeSourceId !== 'all' ? activeSourceId : undefined)}
-          onExportCSV={handleExportCSV}
-          isRefreshing={isLoading}
-        />
-      ) : (
-        <InOutFilterBar
-          fromDate={fromDate}
-          toDate={toDate}
-          searchQuery={searchQuery}
-          statusFilter={statusFilter}
-          onFromDateChange={setFromDate}
-          onToDateChange={setToDate}
-          onSearchChange={setSearchQuery}
-          onStatusFilterChange={setStatusFilter}
-          onRefresh={() => { refreshApiData(); if (activeTab === 'daily') fetchDays(dayPagination.page, dayPagination.limit); else fetchTimesheet(); }}
-          onSyncNow={() => onOpenSync(activeSourceId !== 'all' ? activeSourceId : undefined)}
-          onExportCSV={handleExportCSV}
-          isRefreshing={isLoading}
-        />
-      )}
+      <InOutFilterBar
+        fromDate={fromDate}
+        toDate={toDate}
+        searchQuery={searchQuery}
+        statusFilter={statusFilter}
+        onFromDateChange={setFromDate}
+        onToDateChange={setToDate}
+        onSearchChange={setSearchQuery}
+        onStatusFilterChange={setStatusFilter}
+        onRefresh={() => { refreshApiData(); if (activeTab === 'daily') fetchDays(dayPagination.page, dayPagination.limit); else fetchTimesheet(); }}
+        onSyncNow={() => onOpenSync(activeSourceId !== 'all' ? activeSourceId : undefined)}
+        onExportCSV={handleExport}
+        isRefreshing={isLoading}
+        isExporting={isExporting}
+      />
 
       {error && (
         <ErrorAlert
-          title="Error Loading Attendance"
+          title="Could not load attendance"
           message={error}
-          onRetry={() => { refreshApiData(); if (activeTab === 'daily') fetchDays(); else if (activeTab === 'timesheet') fetchTimesheet(); else fetchRawPunches(); }}
+          onRetry={() => { refreshApiData(); if (activeTab === 'daily') fetchDays(); else fetchTimesheet(); }}
         />
       )}
 
@@ -319,17 +270,6 @@ export const Attendance: React.FC<AttendancePageProps> = ({ sources, activeSourc
         />
       )}
 
-      {/* Tab 3: Raw Biometric Swipes View */}
-      {activeTab === 'raw' && (
-        <AttendanceTable
-          records={rawRecords}
-          pagination={rawPagination}
-          isLoading={isLoading}
-          onPageChange={(p) => fetchRawPunches(p, rawPagination.limit)}
-          onLimitChange={(l) => fetchRawPunches(1, l)}
-          onSyncTrigger={() => onOpenSync(activeSourceId !== 'all' ? activeSourceId : undefined)}
-        />
-      )}
     </div>
   );
 };

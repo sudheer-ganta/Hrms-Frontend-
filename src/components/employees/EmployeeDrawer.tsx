@@ -110,29 +110,29 @@ export const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({ isOpen, onClose,
               </button>
               <button type="button" onClick={() => setIsEditOpen(true)} className="py-2 px-3 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 shadow-xs flex items-center gap-1.5 transition">
                 <Edit3 className="w-3.5 h-3.5 text-[#1184b0]" />
-                <span>Salary / CTC</span>
+                <span>Salary</span>
               </button>
             </div>
 
             {/* KPI cards: every number is the payroll engine's */}
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-4">
               <div className="p-2.5 bg-white rounded-xl border border-slate-200/80 shadow-xs text-center">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Payable</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Paid Days</span>
                 <span className="text-sm font-extrabold font-heading text-emerald-600 mt-0.5 block">{payroll ? `${payroll.payableDays}d` : 'N/A'}</span>
                 <span className="text-[9px] text-slate-400 font-medium block">{payroll ? `of ${payroll.elapsedDays}d elapsed` : ''}</span>
               </div>
               <div className="p-2.5 bg-white rounded-xl border border-slate-200/80 shadow-xs text-center">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">LOP</span>
                 <span className="text-sm font-extrabold font-heading text-rose-600 mt-0.5 block">{payroll ? `${payroll.lopDays}d` : 'N/A'}</span>
-                <span className="text-[9px] text-slate-400 font-medium block">Loss of Pay</span>
+                <span className="text-[9px] text-slate-400 font-medium block">No-Pay Days</span>
               </div>
               <div className="p-2.5 bg-white rounded-xl border border-slate-200/80 shadow-xs text-center">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Work Hrs</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Hours Worked</span>
                 <span className="text-sm font-extrabold font-heading text-indigo-600 mt-0.5 block">{payroll ? `${payroll.totalWorkHours}h` : 'N/A'}</span>
                 <span className="text-[9px] text-slate-400 font-medium block">{payroll ? `${payroll.halfDays} half-day` : ''}</span>
               </div>
               <div className="p-2.5 bg-white rounded-xl border border-slate-200/80 shadow-xs text-center">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">OT Hours</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Overtime</span>
                 <span className="text-sm font-extrabold font-heading text-violet-600 mt-0.5 block">{payroll ? `${payroll.totalOtHours}h` : 'N/A'}</span>
                 <span className="text-[9px] text-violet-600 font-semibold block">{payroll && payroll.otEarnings > 0 ? `+${inr(payroll.otEarnings)}` : ''}</span>
               </div>
@@ -178,7 +178,7 @@ export const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({ isOpen, onClose,
                     {[
                       ['Date of Birth', profile?.dob],
                       ['Official Email', profile?.email],
-                      ['Monthly CTC', profile?.monthlyCtc ? inr(profile.monthlyCtc) : undefined],
+                      ['Monthly Salary', profile?.monthlyCtc ? inr(profile.monthlyCtc) : undefined],
                       ['Bank A/C Number', profile?.bankAccount],
                     ].map(([label, value]) => (
                       <div key={label} className="bg-white p-2.5 rounded-xl border border-slate-100">
@@ -196,10 +196,10 @@ export const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({ isOpen, onClose,
                       <span className="text-[11px] font-bold text-sky-700">{payroll!.month} · {payroll!.isProvisional ? 'provisional' : `closed v${payroll!.snapshotVersion}`}</span>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-                      <div className="bg-white p-2.5 rounded-xl border border-sky-100"><span className="text-[10px] text-slate-400 block">Payable / Month Days</span><span className="font-extrabold text-slate-800">{payroll!.payableDays} / {payroll!.monthDays}</span></div>
+                      <div className="bg-white p-2.5 rounded-xl border border-sky-100"><span className="text-[10px] text-slate-400 block">Paid Days / Days in Month</span><span className="font-extrabold text-slate-800">{payroll!.payableDays} / {payroll!.monthDays}</span></div>
                       <div className="bg-white p-2.5 rounded-xl border border-sky-100"><span className="text-[10px] text-slate-400 block">Present / Half / Leave</span><span className="font-extrabold text-emerald-600">{payroll!.presentDays} / {payroll!.halfDays} / {payroll!.leaveDays}</span></div>
                       <div className="bg-white p-2.5 rounded-xl border border-sky-100"><span className="text-[10px] text-slate-400 block">Overtime</span><span className="font-extrabold text-violet-600">{payroll!.totalOtHours}h {payroll!.otEarnings > 0 ? `(+${inr(payroll!.otEarnings)})` : ''}</span></div>
-                      <div className="bg-white p-2.5 rounded-xl border border-sky-100"><span className="text-[10px] text-slate-400 block">Loss of Pay</span><span className="font-extrabold text-rose-600">-{inr(payroll!.lopDeduction)} ({payroll!.lopDays}d)</span></div>
+                      <div className="bg-white p-2.5 rounded-xl border border-sky-100"><span className="text-[10px] text-slate-400 block">No-Pay Days</span><span className="font-extrabold text-rose-600">-{inr(payroll!.lopDeduction)} ({payroll!.lopDays}d)</span></div>
                       <div className="bg-white p-2.5 rounded-xl border border-sky-100 sm:col-span-2"><span className="text-[10px] text-slate-400 block">Net Pay</span><span className="font-extrabold text-[#1184b0] text-sm">{inr(payroll!.netPayable)}</span></div>
                     </div>
                   </div>
@@ -207,19 +207,19 @@ export const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({ isOpen, onClose,
                   <div className="p-4 rounded-2xl bg-slate-50 border border-dashed border-slate-200 text-center space-y-1.5">
                     <DollarSign className="w-5 h-5 text-slate-400 mx-auto" />
                     <p className="text-xs font-bold text-slate-700">Salary Not Configured</p>
-                    <p className="text-[11px] text-slate-400">No monthly CTC has been assigned to this employee yet.</p>
+                    <p className="text-[11px] text-slate-400">No monthly salary has been set for this employee yet.</p>
                   </div>
                 )}
 
                 {policy && (
                   <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-700 font-heading">Shift & Grace Policy</span>
+                      <span className="text-xs font-bold text-slate-700 font-heading">Shift Timing</span>
                       <span className="text-xs font-bold text-brand-600 bg-sky-100/70 px-2 py-0.5 rounded-md">{policy.shift.shiftName}</span>
                     </div>
                     <div className="grid grid-cols-2 gap-3 text-xs">
-                      <div className="bg-white p-2.5 rounded-xl border border-slate-100"><span className="text-[10px] text-slate-400 block font-bold">Standard Timing</span><span className="font-extrabold text-slate-800">{to12h(policy.shift.startTime)} – {to12h(policy.shift.endTime)}</span></div>
-                      <div className="bg-white p-2.5 rounded-xl border border-slate-100"><span className="text-[10px] text-slate-400 block font-bold">Grace Period</span><span className="font-extrabold text-slate-800">{policy.shift.gracePeriodMinutes} minutes</span></div>
+                      <div className="bg-white p-2.5 rounded-xl border border-slate-100"><span className="text-[10px] text-slate-400 block font-bold">Shift Time</span><span className="font-extrabold text-slate-800">{to12h(policy.shift.startTime)} – {to12h(policy.shift.endTime)}</span></div>
+                      <div className="bg-white p-2.5 rounded-xl border border-slate-100"><span className="text-[10px] text-slate-400 block font-bold">Late Allowed Up To</span><span className="font-extrabold text-slate-800">{policy.shift.gracePeriodMinutes} minutes</span></div>
                     </div>
                   </div>
                 )}
@@ -252,7 +252,7 @@ export const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({ isOpen, onClose,
                             <div className="text-[11px] text-slate-500 font-mono mt-0.5">In {d.firstIn || '--:--'} · Out {d.lastOut || '--:--'}{d.workMinutes ? ` · ${formatMinutes(d.workMinutes)}h` : ''}</div>
                           </div>
                         </div>
-                        <span className="text-[11px] text-brand-600 font-bold group-hover:underline">Edit / WFH</span>
+                        <span className="text-[11px] text-brand-600 font-bold group-hover:underline">Edit</span>
                       </div>
                     );
                   })
@@ -268,8 +268,8 @@ export const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({ isOpen, onClose,
           </div>
 
           <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
-            <span className="text-[11px] text-slate-500 font-medium">Attendance and payroll figures are computed by the server</span>
-            <button type="button" onClick={onClose} className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-xl transition-all">Close Drawer</button>
+            <span className="text-[11px] text-slate-500 font-medium">Figures are calculated automatically</span>
+            <button type="button" onClick={onClose} className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-xl transition-all">Close</button>
           </div>
         </div>
       </div>

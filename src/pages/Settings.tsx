@@ -209,10 +209,10 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
         <div>
           <h1 className="text-xl md:text-2xl font-heading font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
             <SettingsIcon className="w-6 h-6 text-brand-500" />
-            <span>HRMS Policies & System Configuration</span>
+            <span>Settings</span>
           </h1>
           <p className="text-xs text-slate-500 font-sans mt-0.5">
-            Shift timing rules, late grace periods, company holidays, and background auto-sync scheduler
+            Shift timings, holidays, automatic updates and payroll closing
           </p>
         </div>
 
@@ -237,7 +237,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
           }`}
         >
           <Clock className="w-4 h-4" />
-          <span>Shift & Grace Rules</span>
+          <span>Shifts</span>
         </button>
 
         <button
@@ -250,7 +250,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
           }`}
         >
           <CalendarDays className="w-4 h-4" />
-          <span>Holidays & Weekly Offs ({policy?.holidays?.length || 0})</span>
+          <span>Holidays & Weekly Off ({policy?.holidays?.length || 0})</span>
         </button>
 
         <button
@@ -263,7 +263,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
           }`}
         >
           <RefreshCw className="w-4 h-4" />
-          <span>Auto-Sync Scheduler</span>
+          <span>Automatic Updates</span>
           {scheduler?.isRunning && (
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
           )}
@@ -279,7 +279,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
           }`}
         >
           <Building2 className="w-4 h-4" />
-          <span>Biometric Hardware ({sources.length})</span>
+          <span>Attendance Machines ({sources.length})</span>
         </button>
 
         <button
