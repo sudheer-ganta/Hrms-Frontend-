@@ -1,6 +1,8 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import {
+  CalendarPlus,
+  Clock,
   LayoutDashboard,
   CalendarCheck2,
   Users,
@@ -28,6 +30,13 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ sources, isOpen = false, onClose }) => {
   const { user, isSuperAdmin, isFounder, isHr, isEmployee } = useAuth();
+  const navigate = useNavigate();
+
+  // Opens the request form on the employee's own page (My Portal reads ?action=).
+  const openRequest = (action: 'leave' | 'other') => {
+    navigate(`/portal?action=${action}`);
+    if (onClose) onClose();
+  };
 
   type NavItem = { to: string; label: string; icon: typeof LayoutDashboard; iconColor: string };
   type NavGroup = { heading: string; items: NavItem[] };
@@ -112,6 +121,31 @@ export const Sidebar: React.FC<SidebarProps> = ({ sources, isOpen = false, onClo
             </button>
           )}
         </div>
+
+        {/* Leave & Requests: a block of its own for employees, above the menu */}
+        {isEmployee && (
+          <div className="mx-3 mt-4 rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50 via-white to-sky-50/60 p-3.5 shadow-sm">
+            <p className="text-xs font-bold tracking-wide text-[#1184b0] mb-2.5 flex items-center gap-1.5">
+              <CalendarPlus className="w-4 h-4" /> Leave &amp; Requests
+            </p>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => openRequest('leave')}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-[#1184b0] to-[#011638] text-white text-xs font-bold shadow-md shadow-[#1184b0]/25 flex items-center gap-2 hover:opacity-95 active:scale-[0.99] transition-all"
+              >
+                <CalendarPlus className="w-4 h-4 shrink-0" /> <span>Apply Leave</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => openRequest('other')}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-bold flex items-center gap-2 hover:bg-slate-50 active:scale-[0.99] transition-all"
+              >
+                <Clock className="w-4 h-4 shrink-0 text-[#1184b0]" /> <span>Regularize / WFH / OD</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Navigation Links */}
         <div className="px-3 py-5 space-y-1">
