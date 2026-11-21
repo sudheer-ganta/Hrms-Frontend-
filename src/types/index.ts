@@ -307,10 +307,20 @@ export interface SyncAllResult {
   totals: { fetched: number; inserted: number; duplicates: number };
 }
 
+/** One time window of the automatic update (IST). Inside it the system collects every `everyMinutes`; outside every window it is quiet. */
+export interface SyncWindow {
+  from: string;
+  to: string;
+  everyMinutes: number;
+}
+
 export interface SchedulerStatus {
   isRunning: boolean;
   enabled: boolean;
   intervalMinutes: number;
+  windows: SyncWindow[];
+  /** The windows in plain words, written by the server. */
+  scheduleText: string[];
   lastRunAt: string | null;
   nextRunAt: string | null;
   totalRuns: number;
@@ -380,7 +390,7 @@ export interface HRMSPolicySettings {
   leaves: { casualLeave: number; sickLeave: number; earnedLeave: number; compOff: number };
   weeklyOffDays: DayName[];
   holidays: CompanyHoliday[];
-  scheduler: { enabled: boolean; intervalMinutes: number };
+  scheduler: { enabled: boolean; intervalMinutes: number; windows: SyncWindow[] };
   ess: { geofenceMode: 'ENFORCE' | 'OFF' };
   statutory: { pf: PfPolicy };
   updatedAt: string;

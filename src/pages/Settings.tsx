@@ -18,7 +18,7 @@ import {
   BookOpen
 } from 'lucide-react';
 import { api } from '../services/api';
-import { AttendanceSource, HRMSPolicySettings, SchedulerStatus, PayrollRunStatus, PolicyUpdate, DAY_NAMES, DayName, Site } from '../types';
+import { AttendanceSource, HRMSPolicySettings, SchedulerStatus, SyncWindow, PayrollRunStatus, PolicyUpdate, DAY_NAMES, DayName, Site } from '../types';
 import { errorMessage } from '../lib/apiError';
 import { useDataVersion, useLastUpdatedTime } from '../services/dataSync';
 import { istMonth, formatBusinessDate, formatInstantIst } from '../lib/businessDate';
@@ -190,6 +190,26 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
       setScheduler(updated);
     } catch (err) {
       setPageError(errorMessage(err, 'Could not change the automatic update.'));
+    }
+  };
+
+  // Editable copy of the update times; saved with "Save update times".
+  const [windowDrafts, setWindowDrafts] = useState<SyncWindow[]>([]);
+  const [windowsSaving, setWindowsSaving] = useState(false);
+  useEffect(() => { setWindowDrafts((scheduler?.windows ?? []).map((w) => ({ ...w }))); }, [scheduler?.windows]);
+  const windowsChanged = JSON.stringify(windowDrafts) !== JSON.stringify(scheduler?.windows ?? []);
+  const setWindowField = (i: number, patch: Partial<SyncWindow>) => setWindowDrafts((rows) => rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+
+  const handleSaveWindows = async () => {
+    setWindowsSaving(true);
+    try {
+      await api.updatePolicySettings({ scheduler: { enabled: policy?.scheduler.enabled ?? true, intervalMinutes: policy?.scheduler.intervalMinutes ?? 5, windows: windowDrafts } });
+      setScheduler(await api.getSchedulerStatus());
+      setPageError(null);
+    } catch (err) {
+      setPageError(errorMessage(err, 'Could not save the update times.'));
+    } finally {
+      setWindowsSaving(false);
     }
   };
 
@@ -787,9 +807,11 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
                 <span className="text-[10px] font-bold text-slate-400 uppercase">How often</span>
-                <span className="text-sm font-extrabold text-slate-900 block mt-0.5">
-                  Every {scheduler?.intervalMinutes || 5} minutes
-                </span>
+                {scheduler?.windows?.length ? (
+                  <span className="text-xs font-extrabold text-slate-900 block mt-1">Only at the times below</span>
+                ) : (
+                  <span className="text-sm font-extrabold text-slate-900 block mt-0.5">Every {scheduler?.intervalMinutes || 5} minutes</span>
+                )}
               </div>
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
                 <span className="text-[10px] font-bold text-slate-400 uppercase">Times done so far</span>
@@ -808,6 +830,43 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                 <span className="text-xs font-bold text-emerald-600 block mt-1 truncate">
                   {scheduler?.nextRunAt ? new Date(scheduler.nextRunAt).toLocaleTimeString() : 'Scheduled'}
                 </span>
+              </div>
+            </div>
+
+            {/* When the update runs */}
+            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/80 space-y-3">
+              <div>
+                <h4 className="text-xs font-heading font-bold text-slate-900">When it updates</h4>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  The update happens once on the server for everyone. Logging in or opening a page never collects punches. Between these times nothing is collected. Times are Indian time (IST).
+                </p>
+              </div>
+              {windowDrafts.length === 0 && (
+                <p className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  No times set, so the system collects every {scheduler?.intervalMinutes || 5} minutes, all day. Add a time window to reduce this.
+                </p>
+              )}
+              <div className="space-y-2">
+                {windowDrafts.map((w, i) => (
+                  <div key={i} className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className="text-slate-500 font-semibold">From</span>
+                    <input type="time" value={w.from} onChange={(e) => setWindowField(i, { from: e.target.value })} className="px-2 py-1.5 bg-white border border-slate-200 rounded-lg font-semibold" />
+                    <span className="text-slate-500 font-semibold">to</span>
+                    <input type="time" value={w.to} onChange={(e) => setWindowField(i, { to: e.target.value })} className="px-2 py-1.5 bg-white border border-slate-200 rounded-lg font-semibold" />
+                    <span className="text-slate-500 font-semibold">every</span>
+                    <select value={w.everyMinutes} onChange={(e) => setWindowField(i, { everyMinutes: Number(e.target.value) })} className="px-2 py-1.5 bg-white border border-slate-200 rounded-lg font-semibold">
+                      {[...new Set([5, 10, 15, 30, 60, 120, 180, w.everyMinutes])].sort((a, b) => a - b).map((m) => (
+                        <option key={m} value={m}>{m < 60 ? `${m} minutes` : m === 60 ? '1 hour' : m % 60 === 0 ? `${m / 60} hours` : `${m} minutes`}</option>
+                      ))}
+                    </select>
+                    <button type="button" onClick={() => setWindowDrafts((rows) => rows.filter((_, idx) => idx !== i))} className="px-2 py-1.5 text-rose-600 hover:bg-rose-50 rounded-lg font-semibold">Remove</button>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[11px] text-slate-500">A time that ends earlier than it starts (for example 7 PM to 9 AM) runs through the night.</p>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => setWindowDrafts((rows) => [...rows, { from: '09:00', to: '10:30', everyMinutes: 30 }])} disabled={windowDrafts.length >= 8} className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg text-xs font-bold text-slate-700 disabled:opacity-40">Add a time</button>
+                <button type="button" onClick={handleSaveWindows} disabled={!windowsChanged || windowsSaving} className="px-3 py-1.5 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-xs font-bold disabled:opacity-40">{windowsSaving ? 'Saving...' : 'Save update times'}</button>
               </div>
             </div>
 
