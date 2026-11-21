@@ -44,7 +44,7 @@ export const PayrollCloseReviewModal: React.FC<PayrollCloseReviewModalProps> = (
         }
       })
       .catch((err) => {
-        if (isMounted) setError(errorMessage(err, 'Failed to load payroll preview'));
+        if (isMounted) setError(errorMessage(err, 'Could not load the salary list.'));
       })
       .finally(() => {
         if (isMounted) setIsLoading(false);
@@ -72,7 +72,7 @@ export const PayrollCloseReviewModal: React.FC<PayrollCloseReviewModalProps> = (
       await api.closePayrollMonth(month, acknowledged);
       onConfirmed();
     } catch (err) {
-      setError(errorMessage(err, 'Failed to close payroll month'));
+      setError(errorMessage(err, 'Could not lock the month.'));
     } finally {
       setIsConfirming(false);
     }
@@ -88,9 +88,9 @@ export const PayrollCloseReviewModal: React.FC<PayrollCloseReviewModalProps> = (
               <Lock className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-heading font-bold text-slate-900">Review {month} Payroll Before Locking</h2>
+              <h2 className="text-base font-heading font-bold text-slate-900">Check {month} salaries before locking</h2>
               <p className="text-xs text-slate-500 font-sans">
-                Check every number below — once you confirm, these figures are permanent.
+                Look at the list below. After you lock, these amounts cannot change.
               </p>
             </div>
           </div>
@@ -105,7 +105,7 @@ export const PayrollCloseReviewModal: React.FC<PayrollCloseReviewModalProps> = (
         {/* Body */}
         <div className="p-6 overflow-y-auto space-y-4 flex-1">
           {isLoading ? (
-            <div className="py-16 text-center text-sm text-slate-400 font-medium">Loading {month} payroll…</div>
+            <div className="py-16 text-center text-sm text-slate-400 font-medium">Loading {month} salaries…</div>
           ) : (
             <>
               {error && (
@@ -119,13 +119,13 @@ export const PayrollCloseReviewModal: React.FC<PayrollCloseReviewModalProps> = (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
                   <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                    <Users className="w-3.5 h-3.5" /> Employees
+                    <Users className="w-3.5 h-3.5" /> People
                   </span>
                   <span className="text-xl font-heading font-extrabold text-slate-900 block mt-1">{totalEmployees}</span>
                 </div>
                 <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl">
                   <span className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-700 uppercase tracking-wider">
-                    <IndianRupee className="w-3.5 h-3.5" /> Total Net Pay
+                    <IndianRupee className="w-3.5 h-3.5" /> Total to pay
                   </span>
                   <span className="text-xl font-heading font-extrabold text-emerald-700 block mt-1">
                     ₹{totalNetPay.toLocaleString('en-IN')}
@@ -133,7 +133,7 @@ export const PayrollCloseReviewModal: React.FC<PayrollCloseReviewModalProps> = (
                 </div>
                 <div className={`p-3.5 rounded-xl border ${unconfigured.length > 0 ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-200'}`}>
                   <span className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider ${unconfigured.length > 0 ? 'text-amber-700' : 'text-slate-500'}`}>
-                    <ShieldAlert className="w-3.5 h-3.5" /> No Salary Set
+                    <ShieldAlert className="w-3.5 h-3.5" /> No salary set
                   </span>
                   <span className={`text-xl font-heading font-extrabold block mt-1 ${unconfigured.length > 0 ? 'text-amber-700' : 'text-slate-900'}`}>
                     {unconfigured.length}
@@ -146,15 +146,14 @@ export const PayrollCloseReviewModal: React.FC<PayrollCloseReviewModalProps> = (
                   <div className="flex items-start gap-2">
                     <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                     <span>
-                      Attendance is missing for {missingDates.length} of {coverage.workingDays} working days: nobody has a
-                      single punch stored for {missingDates.slice(0, 6).join(', ')}{missingDates.length > 6 ? ', …' : ''}.
-                      Everyone would be locked as loss of pay on those days. Sync attendance for {month} (Settings → Sync)
-                      and reopen this review.
+                      No attendance is saved for {missingDates.length} of {coverage.workingDays} working days
+                      ({missingDates.slice(0, 6).join(', ')}{missingDates.length > 6 ? ', …' : ''}). Everyone would lose
+                      pay for those days. Update attendance from the machines for {month}, then open this check again.
                     </span>
                   </div>
                   <label className="flex items-start gap-2 pl-6 cursor-pointer">
                     <input type="checkbox" className="mt-0.5" checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} />
-                    <span>These days really had no attendance; lock {month} anyway.</span>
+                    <span>These days really had no attendance. Lock {month} anyway.</span>
                   </label>
                 </div>
               )}
@@ -163,9 +162,9 @@ export const PayrollCloseReviewModal: React.FC<PayrollCloseReviewModalProps> = (
                 <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium flex items-start gap-2">
                   <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                   <span>
-                    {unconfigured.length} employee{unconfigured.length === 1 ? '' : 's'} have no CTC configured and will
-                    lock at ₹0 net pay. If that's not intentional, cancel this, set their salary in Employees &amp; CTC
-                    first, then come back to close the month.
+                    {unconfigured.length} {unconfigured.length === 1 ? 'person has' : 'people have'} no salary set and
+                    will get ₹0. If that is not right, press Cancel, set their salary in Employees &amp; Salary, then come
+                    back and lock the month.
                   </span>
                 </div>
               )}
@@ -175,11 +174,11 @@ export const PayrollCloseReviewModal: React.FC<PayrollCloseReviewModalProps> = (
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-bold border-b border-slate-200 text-[10px] sticky top-0">
                     <tr>
-                      <th className="py-2.5 px-3">Emp Code</th>
+                      <th className="py-2.5 px-3">Code</th>
                       <th className="py-2.5 px-3">Name</th>
-                      <th className="py-2.5 px-3 text-right">Payable Days</th>
-                      <th className="py-2.5 px-3 text-right">LOP Days</th>
-                      <th className="py-2.5 px-3 text-right">Net Pay (₹)</th>
+                      <th className="py-2.5 px-3 text-right">Days paid</th>
+                      <th className="py-2.5 px-3 text-right">Days lost</th>
+                      <th className="py-2.5 px-3 text-right">Pay (₹)</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
@@ -191,7 +190,7 @@ export const PayrollCloseReviewModal: React.FC<PayrollCloseReviewModalProps> = (
                         <td className="py-2 px-3 text-right font-mono text-rose-600">{s.lopDays}</td>
                         <td className="py-2 px-3 text-right font-mono font-bold">
                           {s.monthlyCtc > 0 ? `₹${s.netPayable.toLocaleString('en-IN')}` : (
-                            <span className="text-amber-600 italic font-normal">Not Configured</span>
+                            <span className="text-amber-600 italic font-normal">No salary set</span>
                           )}
                         </td>
                       </tr>
@@ -220,7 +219,7 @@ export const PayrollCloseReviewModal: React.FC<PayrollCloseReviewModalProps> = (
             className="inline-flex items-center gap-2 px-5 py-2 text-xs font-heading font-bold text-white bg-gradient-to-r from-brand-500 to-brand-base hover:opacity-95 rounded-xl shadow-md shadow-brand-500/20 transition-all active:scale-95 disabled:opacity-50"
           >
             <Lock className="w-3.5 h-3.5" />
-            <span>{isConfirming ? 'Locking…' : `Confirm & Lock ${month}`}</span>
+            <span>{isConfirming ? 'Locking…' : `Yes, lock ${month}`}</span>
           </button>
         </div>
       </div>

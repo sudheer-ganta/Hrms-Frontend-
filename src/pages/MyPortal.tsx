@@ -21,7 +21,7 @@ const LEAVE_LABELS: Record<LeaveType, string> = {
   CASUAL_LEAVE: 'Casual Leave (CL)', SICK_LEAVE: 'Sick Leave (SL)', EARNED_LEAVE: 'Earned Leave (EL)', COMP_OFF: 'Comp Off', UNPAID_LEAVE: 'Unpaid Leave (LWP)',
 };
 const REQUEST_LABELS: Record<RequestType, string> = {
-  LEAVE: 'Leave', MISSED_PUNCH: 'Missed Swipe Regularization', WORK_FROM_HOME: 'Work From Home', ON_DUTY: 'On Duty',
+  LEAVE: 'Leave', MISSED_PUNCH: 'Forgot to punch', WORK_FROM_HOME: 'Work From Home', ON_DUTY: 'On Duty',
 };
 const STATUS_STYLE: Record<AttendanceRegularizationRequest['status'], string> = {
   PENDING: 'bg-amber-100 text-amber-800 border-amber-200',
@@ -167,7 +167,7 @@ export const MyPortal: React.FC = () => {
   const hasSalary = !!payroll && payroll.monthlyCtc > 0;
 
   if (!selectedEmpCode && !isLoading && !isEmployee) {
-    return <div className="p-8 text-center text-sm text-slate-500">{loadError ?? 'No employees found yet. Sync biometric data or add an employee first.'}</div>;
+    return <div className="p-8 text-center text-sm text-slate-500">{loadError ?? 'No employees yet. Update attendance from the machines or add an employee first.'}</div>;
   }
 
   return (
@@ -270,7 +270,7 @@ export const MyPortal: React.FC = () => {
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
         <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Payable Days</span>
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Days paid</span>
           <div className="flex items-baseline gap-1 mt-1"><span className="text-2xl font-heading font-extrabold text-emerald-600">{payroll ? `${payroll.payableDays}d` : '—'}</span><span className="text-xs text-slate-400 font-medium">{payroll ? `/ ${payroll.elapsedDays}d elapsed` : ''}</span></div>
           <span className="text-[10px] text-slate-500 block mt-0.5">{monthLabel(month)}</span>
         </div>
@@ -280,20 +280,20 @@ export const MyPortal: React.FC = () => {
           <span className="text-[10px] text-purple-700 font-semibold block mt-0.5">Paid, no loss of pay</span>
         </div>
         <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Loss of Pay (LOP)</span>
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Days lost (no pay)</span>
           <span className="text-2xl font-heading font-extrabold text-rose-600 mt-1 block">{payroll ? `${payroll.lopDays}d` : '—'}</span>
           <span className="text-[10px] text-slate-500 block mt-0.5">{payroll ? `${payroll.halfDays} half-day, ${payroll.missedPunchDays} missed punch` : ''}</span>
         </div>
         <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Overtime (OT)</span>
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Overtime</span>
           <span className="text-2xl font-heading font-extrabold text-violet-600 mt-1 block">{payroll ? `${payroll.totalOtHours}h` : '—'}</span>
           <span className="text-[10px] text-violet-600 font-semibold block mt-0.5">{payroll && payroll.otEarnings > 0 ? `+${inr(payroll.otEarnings)} earned` : '0 OT pay'}</span>
         </div>
         <div className="p-4 bg-gradient-to-br from-[#011638] to-[#1184b0] text-white rounded-2xl shadow-md flex flex-col justify-between col-span-2 sm:col-span-1">
           <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-sky-200 block">{payroll?.isProvisional === false ? 'Net Pay' : 'Net Pay So Far'}</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-sky-200 block">{payroll?.isProvisional === false ? 'Net Pay' : 'Pay so far'}</span>
             <span className="text-2xl font-heading font-extrabold mt-1 block">{hasSalary ? inr(payroll!.netPayable) : '—'}</span>
-            {payroll?.isProvisional && <span className="text-[10px] text-sky-200">Provisional until payroll closes</span>}
+            {payroll?.isProvisional && <span className="text-[10px] text-sky-200">Can still change until the month is locked</span>}
           </div>
           <button type="button" onClick={() => setIsPayslipOpen(true)} className="mt-2 py-1.5 px-3 bg-white/15 hover:bg-white/25 text-white rounded-xl text-[11px] font-semibold flex items-center justify-center gap-1.5 transition"><Download className="w-3.5 h-3.5" /><span>View Payslip</span></button>
         </div>
@@ -340,7 +340,7 @@ export const MyPortal: React.FC = () => {
                     </div>
                     <div className="text-right">
                       <span className="text-xs font-extrabold text-slate-900 font-heading block">{formatMinutes(d.workMinutes)}</span>
-                      <span className="text-[10px] text-brand-600 font-semibold group-hover:underline">Click to edit/WFH</span>
+                      <span className="text-[10px] text-brand-600 font-semibold group-hover:underline">Click to change</span>
                     </div>
                   </div>
                 );
@@ -494,7 +494,7 @@ export const MyPortal: React.FC = () => {
               </div>
             </div>
           ) : (
-            <div className="p-6 rounded-xl border border-dashed border-slate-300 bg-slate-50 text-center"><p className="text-xs font-semibold text-slate-600">Salary not configured yet</p><p className="text-[11px] text-slate-400 mt-1">HR has not set up a CTC breakdown for this employee. Contact HR.</p></div>
+            <div className="p-6 rounded-xl border border-dashed border-slate-300 bg-slate-50 text-center"><p className="text-xs font-semibold text-slate-600">Salary not set yet</p><p className="text-[11px] text-slate-400 mt-1">Salary has not been set for this person yet. Please ask HR.</p></div>
           )}
         </div>
       )}
@@ -503,7 +503,7 @@ export const MyPortal: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-heading font-bold text-slate-900">{modal === 'leave' ? 'Apply for Leave' : 'Regularize, Work From Home or On Duty'}</h2>
+              <h2 className="text-base font-heading font-bold text-slate-900">{modal === 'leave' ? 'Apply for Leave' : 'Forgot to punch, Work from home or On duty'}</h2>
               <button type="button" onClick={() => setModal(null)} className="p-1 text-slate-400 hover:text-slate-700"><X className="w-4 h-4" /></button>
             </div>
             {modalError && <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold">{modalError}</div>}
@@ -512,7 +512,7 @@ export const MyPortal: React.FC = () => {
                 <div>
                   <label className="font-semibold text-slate-700 block mb-1">Request type</label>
                   <select value={form.requestType} onChange={(e) => setForm((f) => ({ ...f, requestType: e.target.value as RequestType }))} className={inputCls}>
-                    <option value="MISSED_PUNCH">Missed punch regularization</option>
+                    <option value="MISSED_PUNCH">Forgot to punch</option>
                     <option value="WORK_FROM_HOME">Work from home</option>
                     <option value="ON_DUTY">On duty</option>
                   </select>
@@ -527,7 +527,7 @@ export const MyPortal: React.FC = () => {
                 </div>
               )}
               <div className="grid grid-cols-2 gap-2">
-                <div><label className="font-semibold text-slate-700 block mb-1">{form.requestType === 'MISSED_PUNCH' ? 'Date of missed punch' : 'From date'}</label><input type="date" required value={form.date} max={form.requestType === 'MISSED_PUNCH' ? today : undefined} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} className={inputCls} /></div>
+                <div><label className="font-semibold text-slate-700 block mb-1">{form.requestType === 'MISSED_PUNCH' ? 'Date you forgot to punch' : 'From date'}</label><input type="date" required value={form.date} max={form.requestType === 'MISSED_PUNCH' ? today : undefined} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} className={inputCls} /></div>
                 {form.requestType !== 'MISSED_PUNCH' && (<div><label className="font-semibold text-slate-700 block mb-1">To date (optional)</label><input type="date" value={form.endDate} min={form.date || undefined} onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))} className={inputCls} /></div>)}
               </div>
               {form.requestType === 'LEAVE' && (

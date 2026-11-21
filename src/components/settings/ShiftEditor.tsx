@@ -10,17 +10,17 @@ const label = 'block text-xs font-bold text-slate-700 font-heading mb-1.5';
 const OtWindowsEditor: React.FC<{ windows: TimeWindow[]; onChange: (next: TimeWindow[]) => void }> = ({ windows, onChange }) => (
   <div className="space-y-2">
     <div className="flex items-center justify-between">
-      <label className={label + ' mb-0'}>Overtime hours (IST)</label>
+      <label className={label + ' mb-0'}>Overtime hours</label>
       <button
         type="button"
         disabled={windows.length >= 6}
         onClick={() => onChange([...windows, { start: '19:00', end: '21:00' }])}
         className="inline-flex items-center gap-1 text-[11px] font-bold text-brand-600 hover:text-brand-700 disabled:opacity-40"
       >
-        <Plus className="w-3.5 h-3.5" /> Add overtime hours
+        <Plus className="w-3.5 h-3.5" /> Add overtime time
       </button>
     </div>
-    {windows.length === 0 && <p className="text-[10px] text-slate-400">None: this shift does not earn overtime.</p>}
+    {windows.length === 0 && <p className="text-[10px] text-slate-400">No overtime time added, so this shift gets no overtime.</p>}
     {windows.map((w, i) => (
       <div key={i} className="flex flex-wrap items-center gap-2">
         <TimeInput value={w.start} onChange={(v) => onChange(windows.map((x, j) => (j === i ? { ...x, start: v } : x)))} ariaLabel={`Overtime ${i + 1} from`} />
@@ -33,7 +33,7 @@ const OtWindowsEditor: React.FC<{ windows: TimeWindow[]; onChange: (next: TimeWi
     ))}
     {windows.length > 0 && (
       <p className="text-[10px] text-slate-400">
-        Example: 7:00 PM to 9:00 PM and someone punches out at 8:30 PM gets 1h 30m overtime. Time outside these hours (the break, the gap before overtime starts) is never overtime. For "no limit" use 11:59 PM as the end.
+        Example: overtime from 7:00 PM to 9:00 PM. Someone who leaves at 8:30 PM gets 1 hour 30 minutes. Time outside these hours (like a tea break) is never overtime. For no limit, end at 11:59 PM.
       </p>
     )}
   </div>
@@ -53,7 +53,7 @@ export const ShiftFields: React.FC<{
       <div className="flex items-end gap-3">
         <div className="flex-1">
           <label className={label}>
-            Shift Name {isDefault && <span className="ml-1 text-[10px] font-semibold text-slate-400">Default: everyone not given another shift</span>}
+            Name of shift {isDefault && <span className="ml-1 text-[10px] font-semibold text-slate-400">Everyone follows this unless given another shift</span>}
           </label>
           <input type="text" value={shift.shiftName} onChange={(e) => set({ shiftName: e.target.value })} className={input} placeholder="e.g. Budigere Day" />
         </div>
@@ -66,30 +66,30 @@ export const ShiftFields: React.FC<{
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <div>
-          <label className={label}>Start Time (IST)</label>
+          <label className={label}>Work starts at</label>
           <TimeInput value={shift.startTime} onChange={(v) => set({ startTime: v })} ariaLabel="Shift start" />
         </div>
         <div>
-          <label className={label}>End Time (IST)</label>
+          <label className={label}>Work ends at</label>
           <TimeInput value={shift.endTime} onChange={(v) => set({ endTime: v })} ariaLabel="Shift end" />
         </div>
         <div>
-          <label className={label}>Grace (Minutes)</label>
+          <label className={label}>Extra minutes allowed to come late</label>
           <input type="number" min="0" max="600" value={shift.gracePeriodMinutes} onChange={(e) => set({ gracePeriodMinutes: Number(e.target.value) })} className={input} />
-          {isDefault && lateAfter && <span className="text-[10px] text-slate-400 mt-1 block">Punch in after {to12h(lateAfter)} is Late</span>}
+          {isDefault && lateAfter && <span className="text-[10px] text-slate-400 mt-1 block">Coming after {to12h(lateAfter)} is marked Late</span>}
         </div>
         <div>
-          <label className={label}>Half Day from (Minutes worked)</label>
+          <label className={label}>Half day if worked at least (minutes)</label>
           <input type="number" min="1" value={shift.halfDayThresholdMinutes} onChange={(e) => set({ halfDayThresholdMinutes: Number(e.target.value) })} className={input} />
         </div>
         <div>
-          <label className={label}>Full Day from (Minutes worked)</label>
+          <label className={label}>Full day if worked at least (minutes)</label>
           <input type="number" min="1" value={shift.fullDayThresholdMinutes} onChange={(e) => set({ fullDayThresholdMinutes: Number(e.target.value) })} className={input} />
         </div>
         <div>
-          <label className={label}>Full Day if punch out is at or after (IST, optional)</label>
+          <label className={label}>Also full day if leaving at or after (optional)</label>
           <TimeInput allowEmpty value={shift.minCheckoutForFullDay || ''} onChange={(v) => set({ minCheckoutForFullDay: v })} ariaLabel="Full day if punch out is at or after" />
-          <span className="text-[10px] text-slate-400 mt-1 block">Leaving at or after this time counts as a full day, as long as the Half Day minutes are met.</span>
+          <span className="text-[10px] text-slate-400 mt-1 block">Leaving at or after this time counts as a full day, if the half day minutes are also done.</span>
         </div>
       </div>
 

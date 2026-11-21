@@ -138,7 +138,7 @@ export const Employees: React.FC<EmployeesPageProps> = ({
       'HRA (₹)',
       'Special Allowances (₹)',
       'Payable Days (This Month)',
-      'LOP Days',
+      'Days lost (no pay)',
       'Estimated Net Pay (₹)',
       'Bank Account Number',
       'Bank IFSC Code',
@@ -202,7 +202,7 @@ export const Employees: React.FC<EmployeesPageProps> = ({
             title="Reload the employee list"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-brand-500' : ''}`} />
-            <span className="hidden sm:inline">Refresh Data</span>
+            <span className="hidden sm:inline">Refresh</span>
           </button>
 
           <button
@@ -210,7 +210,7 @@ export const Employees: React.FC<EmployeesPageProps> = ({
             className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl shadow-xs flex items-center gap-1.5 transition"
           >
             <Download className="w-4 h-4 text-emerald-600" />
-            <span>Export Directory CSV</span>
+            <span>Download employee list</span>
           </button>
 
           <button
@@ -219,7 +219,7 @@ export const Employees: React.FC<EmployeesPageProps> = ({
             title="Collect new employees and punches from the attendance machines"
           >
             <UserCheck className="w-4 h-4" />
-            <span>Get Latest Punches</span>
+            <span>Update attendance from machines</span>
           </button>
         </div>
       </div>
@@ -253,7 +253,7 @@ export const Employees: React.FC<EmployeesPageProps> = ({
       </div>
 
       <p className="text-[11px] text-slate-500 px-1">
-        <span className="font-bold text-slate-700">OT</span> on = overtime is worked out automatically from the punch out (overtime hours are set in Settings → Shifts). Click the switch to turn it on or off for a person. A person&apos;s shift is set in their profile.
+        <span className="font-bold text-slate-700">Overtime</span> switched on = the person is paid overtime, worked out from when they leave (the overtime hours are set in Settings → Work hours &amp; pay rules). Click the switch to turn it on or off for a person. A person&apos;s shift is chosen in their details.
         {otError && <span className="ml-2 font-semibold text-rose-600">{otError}</span>}
       </p>
 
@@ -282,7 +282,7 @@ export const Employees: React.FC<EmployeesPageProps> = ({
                   <th className="py-3.5 px-4 whitespace-nowrap text-center">OT</th>
                   <th className="py-3.5 px-4 whitespace-nowrap">Location</th>
                   <th className="py-3.5 px-4 whitespace-nowrap">Monthly Salary</th>
-                  <th className="py-3.5 px-4 whitespace-nowrap">Present This Month</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">Days present this month</th>
                   <th className="py-3.5 px-4 whitespace-nowrap">Expected Take-home</th>
                   <th className="py-3.5 px-4 text-center whitespace-nowrap">Actions</th>
                 </tr>
@@ -406,13 +406,13 @@ export const Employees: React.FC<EmployeesPageProps> = ({
                             </div>
                             <div className="flex items-center gap-1.5 mt-1">
                               {ps.holidays > 0 && (
-                                <span className="text-[10px] font-semibold text-purple-700 bg-purple-50 border border-purple-200/80 px-1.5 py-0.5 rounded shadow-2xs" title="Paid Corporate Holiday (0 LOP)">
+                                <span className="text-[10px] font-semibold text-purple-700 bg-purple-50 border border-purple-200/80 px-1.5 py-0.5 rounded shadow-2xs" title="Paid company holiday">
                                   +{ps.holidays} Holiday
                                 </span>
                               )}
                               {ps.lopDays > 0 && (
                                 <span className="text-[10px] font-semibold text-rose-600 bg-rose-50 border border-rose-200/80 px-1.5 py-0.5 rounded shadow-2xs">
-                                  -{ps.lopDays}d LOP
+                                  {ps.lopDays} days lost
                                 </span>
                               )}
                             </div>
@@ -460,7 +460,7 @@ export const Employees: React.FC<EmployeesPageProps> = ({
                             type="button"
                             onClick={() => setPayslipEmpCode(emp.empCode)}
                             className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 border border-slate-200 transition"
-                            title="Generate & Email Payslip"
+                            title="Send salary slip by email"
                           >
                             <DollarSign className="w-3.5 h-3.5" />
                           </button>
@@ -469,7 +469,7 @@ export const Employees: React.FC<EmployeesPageProps> = ({
                             type="button"
                             onClick={() => setEditEmpCode(emp.empCode)}
                             className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 transition"
-                            title="Edit Profile & Salary"
+                            title="Edit details and salary"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>

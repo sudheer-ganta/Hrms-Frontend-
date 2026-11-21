@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { TOKEN_STORAGE_KEY, clearApiCache } from './api';
+import { API_BASE, TOKEN_STORAGE_KEY, clearApiCache } from './api';
 
 /**
  * App-wide "data changed" signal.
@@ -67,7 +67,7 @@ const checkServerRevision = async () => {
     const token = typeof localStorage !== 'undefined' ? localStorage.getItem(TOKEN_STORAGE_KEY) : null;
     if (!token) return;
 
-    const res = await fetch('/api/realtime/version', {
+    const res = await fetch(`${API_BASE}/realtime/version`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return;
@@ -98,7 +98,7 @@ export const initRealtimeSync = () => {
   if (!token) return;
 
   try {
-    const url = `/api/realtime/stream?token=${encodeURIComponent(token)}`;
+    const url = `${API_BASE}/realtime/stream?token=${encodeURIComponent(token)}`;
     eventSource = new EventSource(url);
 
     eventSource.addEventListener('init', (e: MessageEvent) => {

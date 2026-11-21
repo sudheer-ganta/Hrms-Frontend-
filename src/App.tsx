@@ -20,8 +20,10 @@ const SyncHistory = lazy(() => import('./pages/SyncHistory').then((m) => ({ defa
 const Settings = lazy(() => import('./pages/Settings').then((m) => ({ default: m.Settings })));
 const UserManagement = lazy(() => import('./pages/UserManagement').then((m) => ({ default: m.UserManagement })));
 const OTCalculator = lazy(() => import('./pages/OTCalculator').then((m) => ({ default: m.OTCalculator })));
+const PayRun = lazy(() => import('./pages/PayRun').then((m) => ({ default: m.PayRun })));
 const PfDeductions = lazy(() => import('./pages/PfDeductions').then((m) => ({ default: m.PfDeductions })));
 const Approvals = lazy(() => import('./pages/Approvals').then((m) => ({ default: m.Approvals })));
+const ChangePasswordRequired = lazy(() => import('./pages/ChangePasswordRequired').then((m) => ({ default: m.ChangePasswordRequired })));
 
 import { api } from './services/api';
 import { useDataVersion } from './services/dataSync';
@@ -47,6 +49,13 @@ const PageFallback: React.FC = () => (
   </div>
 );
 
+/** A user still on an admin-set password sees only the "set your new password" screen, never the app. */
+const AppGate: React.FC = () => {
+  const { user } = useAuth();
+  if (user?.mustChangePassword) return <ChangePasswordRequired />;
+  return <MainLayout />;
+};
+
 const MainLayout: React.FC = () => {
   const { isEmployee } = useAuth();
   const dataVersion = useDataVersion();
@@ -71,6 +80,28 @@ const MainLayout: React.FC = () => {
   useEffect(() => {
     loadSources();
   }, [dataVersion]);
+
+  // Once the first screen is up, quietly fetch the other screens' code (and the employee list) while the browser is idle,
+  // so moving between screens does not wait on a download or a server round trip.
+  useEffect(() => {
+    const warm = () => {
+      const pages = isEmployee
+        ? [() => import('./pages/EmployeeDashboard'), () => import('./pages/MyPortal'), () => import('./pages/Holidays')]
+        : [
+            () => import('./pages/Attendance'), () => import('./pages/Employees'), () => import('./pages/Approvals'), () => import('./pages/PayRun'),
+            () => import('./pages/OTCalculator'), () => import('./pages/PfDeductions'), () => import('./pages/Holidays'), () => import('./pages/MyPortal'),
+          ];
+      pages.forEach((load) => { void load().catch(() => undefined); });
+      if (!isEmployee) void api.getAllEmployees().catch(() => undefined);
+    };
+    const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void };
+    if (w.requestIdleCallback) {
+      const id = w.requestIdleCallback(warm, { timeout: 4000 });
+      return () => w.cancelIdleCallback?.(id);
+    }
+    const t = setTimeout(warm, 1500);
+    return () => clearTimeout(t);
+  }, [isEmployee]);
 
   const handleOpenSync = (targetSourceId?: string) => {
     if (targetSourceId && targetSourceId !== 'all') {
@@ -212,6 +243,14 @@ const MainLayout: React.FC = () => {
               }
             />
             <Route
+              path="/pay-run"
+              element={
+                <ProtectedRoute allowedRoles={HR_OR_ABOVE}>
+                  <PayRun />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/pf-deductions"
               element={
                 <ProtectedRoute allowedRoles={HR_OR_ABOVE}>
@@ -286,7 +325,7 @@ export default function App() {
               path="/*"
               element={
                 <ProtectedRoute>
-                  <MainLayout />
+                  <AppGate />
                 </ProtectedRoute>
               }
             />

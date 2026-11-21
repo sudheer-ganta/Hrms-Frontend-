@@ -10,7 +10,7 @@ import type {
 } from '../types';
 import type { AuthResponse, CreateUserInput, User } from '../types/auth.types';
 
-const API_BASE = import.meta.env?.VITE_API_URL || '/api';
+export const API_BASE = import.meta.env?.VITE_API_URL || '/api';
 export const TOKEN_STORAGE_KEY = 'etimehr_auth_token';
 export const USER_STORAGE_KEY = 'etimehr_auth_user';
 
@@ -61,7 +61,9 @@ type Envelope<T> = { success: true; data: T };
  * realtime "data changed" signal (see dataSync), login/logout. The TTL only bounds what a missed signal can leave stale.
  * The "Refresh" buttons call refreshApiData() to force a real round trip.
  */
-const CACHE_TTL_MS = 60_000;
+// Ten minutes is safe because the cache is emptied the moment anything changes (own write, another user's change pushed
+// live, another tab, or the server revision moving when the tab is revisited). The TTL only bounds a missed signal.
+const CACHE_TTL_MS = 10 * 60_000;
 const CACHE_MAX_ENTRIES = 80;
 const UNCACHED = ['/auth/', '/realtime/', '/health', '/attendance/punch/today', '/sync/scheduler/status'];
 const responseCache = new Map<string, { at: number; value: unknown }>();

@@ -9,6 +9,8 @@ export interface User {
   role: UserRole;
   empCode?: string;
   status: 'active' | 'inactive';
+  /** True while the password is one an admin set; the user must replace it before using the app. */
+  mustChangePassword?: boolean;
   createdAt?: string;
 }
 
@@ -32,6 +34,8 @@ export interface AuthContextType {
   isLoading: boolean;
   login: (identifier: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
+  /** Stores the fresh session returned by a successful password change. */
+  completePasswordChange: (data: AuthResponse) => void;
   isSuperAdmin: boolean;
   isFounder: boolean;
   isHr: boolean;

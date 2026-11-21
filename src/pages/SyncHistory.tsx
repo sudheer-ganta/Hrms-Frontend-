@@ -8,6 +8,10 @@ import { api, refreshApiData } from '../services/api';
 import { useDataVersion } from '../services/dataSync';
 import { SyncLog, Pagination, AttendanceSource } from '../types';
 import { History, RefreshCw, X } from 'lucide-react';
+
+// What the machine-update result is called on screen.
+const RESULT_WORDS: Record<string, string> = { SUCCESS: 'Done', RUNNING: 'Updating…', FAILED: 'Did not work', PARTIAL: 'Partly done' };
+const resultWord = (status: string) => RESULT_WORDS[String(status).toUpperCase()] ?? status;
 import { humanizeSyncError } from '../lib/utils';
 import { formatInstantIst as formatDateTime } from '../lib/businessDate';
 import { errorMessage } from '../lib/apiError';
@@ -54,7 +58,7 @@ export const SyncHistory: React.FC<SyncHistoryPageProps> = ({
       setLogs(res.data);
       setPagination(res.pagination);
     } catch (err) {
-      setError(errorMessage(err, 'Failed to fetch sync history'));
+      setError(errorMessage(err, 'Could not load the update list.'));
     } finally {
       setIsLoading(false);
     }
@@ -73,10 +77,10 @@ export const SyncHistory: React.FC<SyncHistoryPageProps> = ({
           <div>
             <h1 className="text-xl md:text-2xl font-heading font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
               <History className="w-6 h-6 text-amber-500" />
-              <span>Machine Sync Log</span>
+              <span>Attendance Updates</span>
             </h1>
             <p className="text-xs text-slate-500 font-sans mt-0.5">
-              Audit logs of all automated and manual e-Timeoffice API synchronization operations
+              Every time attendance was collected from the machines, by itself or by a person, and whether it worked
             </p>
           </div>
           <button
@@ -85,7 +89,7 @@ export const SyncHistory: React.FC<SyncHistoryPageProps> = ({
             className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-brand-500 to-brand-base hover:opacity-95 text-white text-xs font-heading font-bold rounded-xl shadow-md shadow-brand-500/20 transition-all active:scale-95 self-start sm:self-auto"
           >
             <RefreshCw className="w-3.5 h-3.5" />
-            <span>Sync Attendance</span>
+            <span>Update attendance now</span>
           </button>
         </div>
 
@@ -100,17 +104,17 @@ export const SyncHistory: React.FC<SyncHistoryPageProps> = ({
       {/* Filter Toolbar */}
       <div className="flex items-center justify-between bg-white border border-slate-200/80 rounded-2xl p-4 shadow-card">
         <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Status:</span>
+          <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Show:</span>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-800 font-semibold focus:outline-none focus:border-brand-500"
           >
-            <option value="">All Statuses</option>
-            <option value="SUCCESS">Success</option>
-            <option value="RUNNING">Running</option>
-            <option value="FAILED">Failed</option>
-            <option value="PARTIAL">Partial</option>
+            <option value="">All</option>
+            <option value="SUCCESS">Done</option>
+            <option value="RUNNING">Updating now</option>
+            <option value="FAILED">Did not work</option>
+            <option value="PARTIAL">Partly done</option>
           </select>
         </div>
 
@@ -119,7 +123,7 @@ export const SyncHistory: React.FC<SyncHistoryPageProps> = ({
           onClick={() => { refreshApiData(); fetchLogs(pagination.page, pagination.limit); }}
           disabled={isLoading}
           className="p-2 bg-slate-50 border border-slate-200 hover:bg-slate-100 rounded-xl text-slate-600 hover:text-slate-900 transition-all shadow-xs"
-          title="Refresh Logs"
+          title="Refresh the list"
         >
           <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-brand-500' : ''}`} />
         </button>
@@ -127,7 +131,7 @@ export const SyncHistory: React.FC<SyncHistoryPageProps> = ({
 
       {error && (
         <ErrorAlert
-          title="Error Fetching Logs"
+          title="Could not load the list"
           message={error}
           onRetry={() => { refreshApiData(); fetchLogs(pagination.page, pagination.limit); }}
         />
@@ -140,9 +144,9 @@ export const SyncHistory: React.FC<SyncHistoryPageProps> = ({
         ) : logs.length === 0 ? (
           <div className="p-6">
             <EmptyState
-              title="No Synchronization Logs Recorded"
-              description="Click 'Sync Attendance' to trigger your first synchronization with e-Timeoffice."
-              actionLabel="Sync Attendance"
+              title="No updates yet"
+              description="Press 'Update attendance now' to collect attendance from the machines for the first time."
+              actionLabel="Update attendance now"
               onAction={() => onOpenSync(activeSourceId !== 'all' ? activeSourceId : undefined)}
             />
           </div>
@@ -152,15 +156,15 @@ export const SyncHistory: React.FC<SyncHistoryPageProps> = ({
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-bold border-b border-slate-200 text-[10px]">
                   <tr>
-                    <th className="py-3.5 px-4">Location</th>
-                    <th className="py-3.5 px-4">Type</th>
+                    <th className="py-3.5 px-4">Place</th>
+                    <th className="py-3.5 px-4">What</th>
                     <th className="py-3.5 px-4">Started</th>
-                    <th className="py-3.5 px-4">Completed</th>
-                    <th className="py-3.5 px-4">Status</th>
-                    <th className="py-3.5 px-4 text-right">Fetched</th>
-                    <th className="py-3.5 px-4 text-right">Inserted</th>
-                    <th className="py-3.5 px-4 text-right">Duplicates</th>
-                    <th className="py-3.5 px-4 text-center">Action</th>
+                    <th className="py-3.5 px-4">Finished</th>
+                    <th className="py-3.5 px-4">Result</th>
+                    <th className="py-3.5 px-4 text-right">Received</th>
+                    <th className="py-3.5 px-4 text-right">New</th>
+                    <th className="py-3.5 px-4 text-right">Already had</th>
+                    <th className="py-3.5 px-4 text-center"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
@@ -181,17 +185,17 @@ export const SyncHistory: React.FC<SyncHistoryPageProps> = ({
                               : 'bg-sky-50 text-brand-700 border-sky-200'
                           }`}
                         >
-                          {log.syncType === 'RAW' ? 'Raw Scans' : 'Daily Attendance'}
+                          {log.syncType === 'RAW' ? 'Every punch' : 'Day summary'}
                         </span>
                       </td>
                       <td className="py-3.5 px-4 font-mono text-slate-600 font-medium">
                         {formatDateTime(log.startedAt)}
                       </td>
                       <td className="py-3.5 px-4 font-mono text-slate-600 font-medium">
-                        {log.completedAt ? formatDateTime(log.completedAt) : 'In Progress...'}
+                        {log.completedAt ? formatDateTime(log.completedAt) : 'Still working…'}
                       </td>
                       <td className="py-3.5 px-4">
-                        <StatusBadge status={log.status} size="sm" />
+                        <StatusBadge status={log.status} label={resultWord(log.status)} size="sm" />
                       </td>
                       <td className="py-3.5 px-4 text-right font-mono text-slate-600">
                         {log.recordsFetched ?? 0}
@@ -211,7 +215,7 @@ export const SyncHistory: React.FC<SyncHistoryPageProps> = ({
                           }}
                           className="px-3 py-1 text-[11px] font-bold text-brand-600 bg-sky-50 border border-sky-200 rounded-lg hover:bg-brand-500 hover:text-white transition-all shadow-xs"
                         >
-                          Details
+                          See details
                         </button>
                       </td>
                     </tr>
@@ -223,7 +227,7 @@ export const SyncHistory: React.FC<SyncHistoryPageProps> = ({
             {/* Pagination */}
             <div className="p-4 border-t border-slate-200 bg-slate-50/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-slate-600">
               <span className="font-medium">
-                Total <strong className="text-brand-600">{pagination.total}</strong> sync events
+                <strong className="text-brand-600">{pagination.total}</strong> updates in total
               </span>
               <div className="flex items-center gap-2">
                 <button
@@ -258,7 +262,7 @@ export const SyncHistory: React.FC<SyncHistoryPageProps> = ({
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
               <div className="flex items-center gap-2.5">
                 <History className="w-5 h-5 text-brand-500" />
-                <h3 className="font-heading font-bold text-slate-900">Sync Log Details</h3>
+                <h3 className="font-heading font-bold text-slate-900">Update details</h3>
               </div>
               <button
                 onClick={() => setSelectedLog(null)}
@@ -271,17 +275,17 @@ export const SyncHistory: React.FC<SyncHistoryPageProps> = ({
             <div className="p-6 space-y-4 text-xs">
               <div className="grid grid-cols-2 gap-3 p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
                 <div>
-                  <span className="text-slate-500 block text-[11px] font-semibold uppercase tracking-wider">Location</span>
+                  <span className="text-slate-500 block text-[11px] font-semibold uppercase tracking-wider">Place</span>
                   <span className="font-bold text-slate-900 text-sm">{selectedLog.sourceName}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block text-[11px] font-semibold uppercase tracking-wider mb-1">Status</span>
-                  <StatusBadge status={selectedLog.status} size="sm" />
+                  <span className="text-slate-500 block text-[11px] font-semibold uppercase tracking-wider mb-1">Result</span>
+                  <StatusBadge status={selectedLog.status} label={resultWord(selectedLog.status)} size="sm" />
                 </div>
                 <div>
-                  <span className="text-slate-500 block text-[11px] font-semibold uppercase tracking-wider">Type</span>
+                  <span className="text-slate-500 block text-[11px] font-semibold uppercase tracking-wider">What</span>
                   <span className="font-bold text-slate-900 text-sm">
-                    {selectedLog.syncType === 'RAW' ? 'Raw Fingerprint Scans' : 'Daily Attendance & Hours'}
+                    {selectedLog.syncType === 'RAW' ? 'Every punch' : 'Day summary and hours'}
                   </span>
                 </div>
                 <div>
@@ -289,24 +293,24 @@ export const SyncHistory: React.FC<SyncHistoryPageProps> = ({
                   <span className="font-mono text-slate-700 font-medium">{formatDateTime(selectedLog.startedAt)}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block text-[11px] font-semibold uppercase tracking-wider">Completed</span>
+                  <span className="text-slate-500 block text-[11px] font-semibold uppercase tracking-wider">Finished</span>
                   <span className="font-mono text-slate-700 font-medium">
-                    {selectedLog.completedAt ? formatDateTime(selectedLog.completedAt) : 'Pending'}
+                    {selectedLog.completedAt ? formatDateTime(selectedLog.completedAt) : 'Not finished'}
                   </span>
                 </div>
               </div>
 
               <div className="grid grid-cols-3 gap-2.5">
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center">
-                  <span className="text-slate-500 block text-[10px] font-semibold uppercase tracking-wider">Fetched</span>
+                  <span className="text-slate-500 block text-[10px] font-semibold uppercase tracking-wider">Received</span>
                   <span className="font-heading font-extrabold text-slate-900 text-xl mt-0.5 block">{selectedLog.recordsFetched}</span>
                 </div>
                 <div className="p-3 bg-sky-50 border border-sky-200 rounded-xl text-center">
-                  <span className="text-brand-600 block text-[10px] font-semibold uppercase tracking-wider">Inserted</span>
+                  <span className="text-brand-600 block text-[10px] font-semibold uppercase tracking-wider">New</span>
                   <span className="font-heading font-extrabold text-brand-600 text-xl mt-0.5 block">{selectedLog.recordsInserted}</span>
                 </div>
                 <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-center">
-                  <span className="text-amber-700 block text-[10px] font-semibold uppercase tracking-wider">Duplicates</span>
+                  <span className="text-amber-700 block text-[10px] font-semibold uppercase tracking-wider">Already had</span>
                   <span className="font-heading font-extrabold text-amber-700 text-xl mt-0.5 block">{selectedLog.recordsSkipped}</span>
                 </div>
               </div>

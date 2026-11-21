@@ -5,7 +5,7 @@
 
 // ------------------------------------------------------------------ API contract
 export type ApiErrorCode =
-  | 'VALIDATION_ERROR' | 'UNAUTHENTICATED' | 'FORBIDDEN' | 'NOT_FOUND' | 'CONFLICT'
+  | 'VALIDATION_ERROR' | 'UNAUTHENTICATED' | 'FORBIDDEN' | 'PASSWORD_CHANGE_REQUIRED' | 'NOT_FOUND' | 'CONFLICT'
   | 'BUSINESS_RULE' | 'UPSTREAM_FAILED' | 'SERVICE_UNAVAILABLE' | 'RATE_LIMITED' | 'INTERNAL';
 
 export interface ApiErrorDetail {
@@ -55,7 +55,7 @@ export interface AttendanceDay {
   holidayName: string | null;
   /** Days of work recognized on a weekly off / paid holiday under policy.offDayWork (0 unless AUTOMATIC). */
   offDayWorkFraction: number;
-  /** Weekly off worked right after consecutive absent days: counted as a normal day, no weekly-off pay. */
+  /** Weekly off worked right after absent day(s): paid as a normal day (1x), not the weekly-off rate. */
   offDayWorkAsNormalDay: boolean;
   /** Policy version this verdict was computed under. */
   policyVersion: number;
@@ -588,6 +588,10 @@ export interface EmployeePayrollSummary {
   holidayWorkAutoDays: number;
   offDayWorkOverridden: boolean;
   weeklyOffWorkEarnings: number;
+  /** Weekly offs worked right after absent day(s): paid as a normal day (1x). Absent on rows frozen before 2026.11-1. */
+  weeklyOffNormalDays?: number;
+  weeklyOffNormalAutoDays?: number;
+  weeklyOffNormalEarnings?: number;
   holidayWorkEarnings: number;
   /** Only on rows frozen before the weekly-off / holiday split. */
   sundayDays?: number;
@@ -656,6 +660,8 @@ export interface OtAdjustment {
   multiplier?: number;
   /** Explicit HR overrides of what attendance recognized; omit to use the resolver's result. */
   weeklyOffWorkDays?: number;
+  /** Weekly offs worked right after absent day(s), paid 1x (a normal day). */
+  weeklyOffNormalDays?: number;
   holidayWorkDays?: number;
   /** @deprecated legacy name for weeklyOffWorkDays. */
   sundayDays?: number;

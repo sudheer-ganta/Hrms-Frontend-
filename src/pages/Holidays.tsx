@@ -117,7 +117,7 @@ export const Holidays: React.FC = () => {
 
         <div className="flex items-center gap-2 bg-purple-50 border border-purple-200/80 px-3.5 py-2 rounded-xl text-purple-800 text-xs font-semibold shadow-xs">
           <ShieldCheck className="w-4 h-4 text-purple-600" />
-          <span>Dates follow IST business days</span>
+          <span>Dates are in Indian time</span>
         </div>
       </div>
 
@@ -140,9 +140,9 @@ export const Holidays: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-card flex items-center justify-between">
           <div>
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Active Holidays</span>
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total holidays</span>
             <span className="text-2xl font-heading font-extrabold text-purple-700 mt-1 block">{holidays.length} Days</span>
-            <span className="text-[10px] text-slate-500">Configured in ColorMyles HRMS</span>
+            <span className="text-[10px] text-slate-500">Saved in the system</span>
           </div>
           <div className="w-11 h-11 rounded-2xl bg-purple-100 text-purple-600 flex items-center justify-center font-bold">
             <Calendar className="w-5 h-5" />
@@ -153,7 +153,7 @@ export const Holidays: React.FC = () => {
           <div>
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">This Month ({currentMonth})</span>
             <span className="text-2xl font-heading font-extrabold text-emerald-600 mt-1 block">{monthHolidays.length} Day</span>
-            <span className="text-[10px] text-slate-500">Credited to all active staff</span>
+            <span className="text-[10px] text-slate-500">Paid for all staff</span>
           </div>
           <div className="w-11 h-11 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold">
             <Sparkles className="w-5 h-5" />
@@ -183,7 +183,7 @@ export const Holidays: React.FC = () => {
             </div>
             <div>
               <h2 className="text-sm font-heading font-bold text-slate-900">Add New Holiday</h2>
-              <p className="text-[10px] text-slate-400">Save festival or corporate company off</p>
+              <p className="text-[10px] text-slate-400">Add a day off for the company</p>
             </div>
           </div>
 
@@ -252,12 +252,12 @@ export const Holidays: React.FC = () => {
               {isAdding ? (
                 <>
                   <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  <span>Saving Holiday...</span>
+                  <span>Saving...</span>
                 </>
               ) : (
                 <>
                   <Plus className="w-4 h-4" />
-                  <span>Add Corporate Holiday</span>
+                  <span>Add holiday</span>
                 </>
               )}
             </button>
@@ -273,8 +273,8 @@ export const Holidays: React.FC = () => {
                 <CalendarDays className="w-4 h-4" />
               </div>
               <div>
-                <h2 className="text-sm font-heading font-bold text-slate-900">Configured Corporate Holidays</h2>
-                <p className="text-[10px] text-slate-400">All registered company holidays with full pay protection</p>
+                <h2 className="text-sm font-heading font-bold text-slate-900">Company holidays</h2>
+                <p className="text-[10px] text-slate-400">All the days the company is closed</p>
               </div>
             </div>
 
@@ -291,7 +291,7 @@ export const Holidays: React.FC = () => {
           ) : holidays.length === 0 ? (
             <div className="py-12 text-center text-slate-400 text-xs space-y-2 bg-slate-50/60 rounded-xl border border-dashed border-slate-200 p-8">
               <PartyPopper className="w-8 h-8 text-slate-300 mx-auto" />
-              <p className="font-bold text-slate-700">No Corporate Holidays Configured Yet</p>
+              <p className="font-bold text-slate-700">No holidays added yet</p>
               <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
                 Use the form on the left to add your first company holiday (e.g. Vinayaka Chavithi, Diwali) so employees receive full pay credit.
               </p>

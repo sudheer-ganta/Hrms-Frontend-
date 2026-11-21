@@ -199,7 +199,7 @@ export const Approvals: React.FC = () => {
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total Pending</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Waiting for you</span>
             <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
               <Clock className="w-5 h-5" />
             </div>
@@ -222,7 +222,7 @@ export const Approvals: React.FC = () => {
           className="p-5 bg-white rounded-2xl border border-slate-200/80 shadow-xs cursor-pointer hover:border-slate-300 hover:shadow-md transition"
         >
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Pending Leaves</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Leave requests</span>
             <div className="w-9 h-9 rounded-xl bg-sky-100 text-sky-600 flex items-center justify-center">
               <Calendar className="w-5 h-5" />
             </div>
@@ -231,9 +231,9 @@ export const Approvals: React.FC = () => {
             <span className="text-3xl font-heading font-extrabold text-sky-600">
               {pendingLeaves}
             </span>
-            <span className="text-xs text-slate-500 font-medium">Applications</span>
+            <span className="text-xs text-slate-500 font-medium">People asking for leave</span>
           </div>
-          <span className="text-xs text-slate-400 block mt-2 font-medium">CL, SL & EL requests</span>
+          <span className="text-xs text-slate-400 block mt-2 font-medium">Casual, sick and earned leave</span>
         </div>
 
         <div 
@@ -241,7 +241,7 @@ export const Approvals: React.FC = () => {
           className="p-5 bg-white rounded-2xl border border-slate-200/80 shadow-xs cursor-pointer hover:border-slate-300 hover:shadow-md transition"
         >
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Pending Swipes</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Forgot to punch</span>
             <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
               <Send className="w-5 h-5" />
             </div>
@@ -250,9 +250,9 @@ export const Approvals: React.FC = () => {
             <span className="text-3xl font-heading font-extrabold text-emerald-600">
               {pendingPunches}
             </span>
-            <span className="text-xs text-slate-500 font-medium">Regularizations</span>
+            <span className="text-xs text-slate-500 font-medium">Corrections asked</span>
           </div>
-          <span className="text-xs text-slate-400 block mt-2 font-medium">Forgot punch corrections</span>
+          <span className="text-xs text-slate-400 block mt-2 font-medium">To fix a missed punch</span>
         </div>
 
         <div 
@@ -264,7 +264,7 @@ export const Approvals: React.FC = () => {
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Processed</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Already answered</span>
             <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
               <CheckCircle2 className="w-5 h-5" />
             </div>
@@ -275,7 +275,7 @@ export const Approvals: React.FC = () => {
             </span>
             <span className="text-xs text-slate-400 font-medium">Approved / {rejectedCount} Rejected</span>
           </div>
-          <span className="text-xs text-slate-400 block mt-2 font-medium">Updated in timesheet</span>
+          <span className="text-xs text-slate-400 block mt-2 font-medium">Saved in attendance</span>
         </div>
       </div>
 
@@ -354,8 +354,8 @@ export const Approvals: React.FC = () => {
             className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-medium text-slate-700 outline-none focus:border-brand-500 bg-white"
           >
             <option value="ALL">All Request Types</option>
-            <option value="LEAVE">Leave Applications</option>
-            <option value="MISSED_PUNCH">Missed Punch Swipes</option>
+            <option value="LEAVE">Leave</option>
+            <option value="MISSED_PUNCH">Forgot to punch</option>
             <option value="WORK_FROM_HOME">Work From Home</option>
             <option value="ON_DUTY">On Duty</option>
           </select>
@@ -378,12 +378,12 @@ export const Approvals: React.FC = () => {
         {isLoading ? (
           <div className="py-20 text-center text-slate-400 text-xs bg-white rounded-2xl border border-slate-200/80 shadow-xs">
             <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-            <span>Loading leave & regularization requests...</span>
+            <span>Loading requests...</span>
           </div>
         ) : filteredRequests.length === 0 ? (
           <div className="py-20 text-center text-slate-400 text-xs bg-white rounded-2xl border border-dashed border-slate-200 shadow-xs">
             <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto mb-2" />
-            <p className="font-heading font-bold text-slate-700 text-sm">All Clean! No Requests Found</p>
+            <p className="font-heading font-bold text-slate-700 text-sm">Nothing is waiting. No requests found</p>
             <p className="text-slate-400 mt-1">There are no {statusTab.toLowerCase()} requests matching your filters.</p>
           </div>
         ) : (
@@ -401,7 +401,7 @@ export const Approvals: React.FC = () => {
               : req.leaveType === 'UNPAID_LEAVE'
               ? 'Unpaid Leave (LWP)'
               : 'Leave';
-            const typeLabel = isLeave ? leaveLabel : req.requestType === 'MISSED_PUNCH' ? 'Missed Swipe Regularization' : req.requestType === 'WORK_FROM_HOME' ? 'Work From Home' : 'On Duty';
+            const typeLabel = isLeave ? leaveLabel : req.requestType === 'MISSED_PUNCH' ? 'Forgot to punch' : req.requestType === 'WORK_FROM_HOME' ? 'Work From Home' : 'On Duty';
 
             return (
               <div 
@@ -494,7 +494,7 @@ export const Approvals: React.FC = () => {
                     <>
                       <span className={`py-1.5 px-3.5 rounded-xl font-bold text-xs border flex items-center gap-1.5 ${req.status === 'APPLIED' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-amber-100 text-amber-800 border-amber-200'}`}>
                         <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>{req.status === 'APPLIED' ? 'Approved & applied' : 'Approved, not yet applied'}</span>
+                        <span>{req.status === 'APPLIED' ? 'Approved and saved in attendance' : 'Approved, not yet saved in attendance'}</span>
                       </span>
                       {req.status === 'APPROVED' && (
                         <button type="button" disabled={isProcessing} onClick={() => handleRetryApply(req)} className="py-2 px-3.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl text-xs font-bold transition cursor-pointer">
@@ -522,7 +522,7 @@ export const Approvals: React.FC = () => {
       {revokeTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
-            <h3 className="font-heading font-bold text-slate-900 text-base">Revoke approved request</h3>
+            <h3 className="font-heading font-bold text-slate-900 text-base">Take back an approved request</h3>
             <p className="text-xs text-slate-600">
               This removes the attendance effect for <strong>{revokeTarget.empName}</strong> ({formatBusinessDate(revokeTarget.date)}) and restores any leave balance. The days are recalculated by the server.
             </p>
@@ -534,7 +534,7 @@ export const Approvals: React.FC = () => {
               />
               <div className="flex items-center justify-end gap-2">
                 <button type="button" onClick={() => { setRevokeTarget(null); setRevokeReason(''); }} className="py-2 px-4 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50">Cancel</button>
-                <button type="submit" disabled={isProcessing || revokeReason.trim().length < 5} className="py-2 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold disabled:opacity-50">Revoke request</button>
+                <button type="submit" disabled={isProcessing || revokeReason.trim().length < 5} className="py-2 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold disabled:opacity-50">Take back</button>
               </div>
             </form>
           </div>

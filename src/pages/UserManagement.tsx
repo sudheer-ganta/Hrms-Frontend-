@@ -25,6 +25,15 @@ import { errorMessage } from '../lib/apiError';
 import type { EmployeeProfile } from '../types';
 import type { User as AppUser, CreateUserInput } from '../types/auth.types';
 
+// Plain names for the four kinds of login, and what each one can do.
+const ROLE_WORDS: Record<string, string> = { SUPER_ADMIN: 'Admin (everything)', FOUNDER: 'Founder', HR: 'HR', EMPLOYEE: 'Employee' };
+const ROLE_HELP: Record<string, string> = {
+  EMPLOYEE: 'Sees only their own attendance, leave and salary slip.',
+  FOUNDER: 'Sees all staff, attendance, salary and settings.',
+  HR: 'Runs daily work: attendance, leave, overtime and salary. Cannot change settings.',
+  SUPER_ADMIN: 'Full control, including settings, logins and opening a locked salary month.',
+};
+
 export const UserManagement: React.FC = () => {
   const { token } = useAuth();
   const dataVersion = useDataVersion();
@@ -94,12 +103,12 @@ export const UserManagement: React.FC = () => {
         empCode: formData.role === 'EMPLOYEE' ? formData.empCode.trim() : undefined,
       };
       await api.createUser(payload);
-      setNotification({ type: 'success', message: `Account created successfully for ${formData.name || formData.email}!` });
+      setNotification({ type: 'success', message: `Login created for ${formData.name || formData.email}.` });
       setIsCreateModalOpen(false);
       setFormData({ role: 'EMPLOYEE', empCode: '', name: '', email: '', password: '' });
       loadData();
     } catch (err) {
-      const message = errorMessage(err, 'Creation failed.');
+      const message = errorMessage(err, 'Could not create the login.');
       setNotification({ type: 'error', message });
     }
   };
@@ -107,22 +116,22 @@ export const UserManagement: React.FC = () => {
   const handleToggleStatus = async (userId: string) => {
     try {
       await api.toggleUserStatus(userId);
-      setNotification({ type: 'success', message: 'User status updated.' });
+      setNotification({ type: 'success', message: 'Done. The login is now switched on or off.' });
       loadData();
     } catch (err) {
-      const message = errorMessage(err, 'Failed to update status.');
+      const message = errorMessage(err, 'Could not switch the login on or off.');
       alert(message);
     }
   };
 
   const handleDeleteUser = async (userId: string, name: string) => {
-    if (!window.confirm(`Are you sure you want to permanently delete the login for ${name}?`)) return;
+    if (!window.confirm(`Delete the login for ${name} for good? They will not be able to sign in. This cannot be undone.`)) return;
     try {
       await api.deleteUser(userId);
-      setNotification({ type: 'success', message: 'User deleted.' });
+      setNotification({ type: 'success', message: 'Login deleted.' });
       loadData();
     } catch (err) {
-      const message = errorMessage(err, 'Failed to delete user.');
+      const message = errorMessage(err, 'Could not delete the login.');
       alert(message);
     }
   };
@@ -131,16 +140,16 @@ export const UserManagement: React.FC = () => {
     e.preventDefault();
     if (!selectedUserForReset || !newPassword) return;
     if (newPassword.length < 10 || !/[A-Za-z]/.test(newPassword) || !/\d/.test(newPassword)) {
-      setNotification({ type: 'error', message: 'Password must be at least 10 characters and contain a letter and a digit.' });
+      setNotification({ type: 'error', message: 'The password needs at least 10 characters, with at least one letter and one number.' });
       return;
     }
     try {
       await api.resetUserPassword(selectedUserForReset.id, newPassword);
-      setNotification({ type: 'success', message: `Password reset successfully for ${selectedUserForReset.name}.` });
+      setNotification({ type: 'success', message: `New password saved for ${selectedUserForReset.name}.` });
       setIsResetPassModalOpen(false);
       setNewPassword('');
     } catch (err) {
-      const message = errorMessage(err, 'Failed to reset password.');
+      const message = errorMessage(err, 'Could not save the new password.');
       alert(message);
     }
   };
@@ -188,13 +197,13 @@ export const UserManagement: React.FC = () => {
       <div className="bg-gradient-to-r from-[#011638] via-[#093554] to-[#1184b0] rounded-3xl p-6 sm:p-8 text-white shadow-xl shadow-[#011638]/20 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-sky-200 text-[10px] font-bold uppercase tracking-wider mb-2">
-            <Crown className="w-3.5 h-3.5" /> Super Admin Access Control
+            <Crown className="w-3.5 h-3.5" /> Admin only
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight font-heading">
-            User Accounts & Security
+            Logins
           </h1>
           <p className="text-xs text-sky-100/80 mt-1 max-w-xl">
-            Create and manage login access for Founders and Biometric Enrolled Employees. Linked directly with MongoDB Atlas credentials.
+            Decide who can sign in to this system and what they can see. Make a login, change a password, or switch a login off.
           </p>
         </div>
 
@@ -209,7 +218,7 @@ export const UserManagement: React.FC = () => {
             onClick={() => { refreshApiData(); loadData(); }}
             disabled={loading}
             className="p-3 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-2xl transition-all shadow-md active:scale-95 shrink-0"
-            title="Refresh Users"
+            title="Refresh"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
@@ -219,7 +228,7 @@ export const UserManagement: React.FC = () => {
             className="px-5 py-3 bg-white text-[#011638] hover:bg-sky-50 text-xs font-bold rounded-2xl transition-all shadow-lg flex items-center gap-2 active:scale-95 shrink-0"
           >
             <UserPlus className="w-4 h-4 text-[#1184b0]" />
-            <span>Create New Account</span>
+            <span>Add a login</span>
           </button>
         </div>
       </div>
@@ -227,29 +236,29 @@ export const UserManagement: React.FC = () => {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Total System Logins</span>
-          <span className="text-2xl font-extrabold text-slate-900 font-heading">{users.length} Accounts</span>
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Everyone who can sign in</span>
+          <span className="text-2xl font-extrabold text-slate-900 font-heading">{users.length} logins</span>
         </div>
 
         <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs">
           <span className="text-[10px] font-bold text-[#1184b0] uppercase tracking-wider block mb-1 flex items-center gap-1">
-            <Crown className="w-3 h-3" /> Super Admin
+            <Crown className="w-3 h-3" /> Admins
           </span>
-          <span className="text-2xl font-extrabold text-slate-900 font-heading">{superAdminCount} Root</span>
+          <span className="text-2xl font-extrabold text-slate-900 font-heading">{superAdminCount} full control</span>
         </div>
 
         <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs">
           <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block mb-1 flex items-center gap-1">
-            <Briefcase className="w-3 h-3" /> Founders
+            <Briefcase className="w-3 h-3" /> Founders and HR
           </span>
-          <span className="text-2xl font-extrabold text-slate-900 font-heading">{founderCount} Active{hrCount ? ` · ${hrCount} HR` : ''}</span>
+          <span className="text-2xl font-extrabold text-slate-900 font-heading">{founderCount} founder{founderCount === 1 ? '' : 's'}{hrCount ? ` · ${hrCount} HR` : ''}</span>
         </div>
 
         <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs">
           <span className="text-[10px] font-bold text-sky-600 uppercase tracking-wider block mb-1 flex items-center gap-1">
             <User className="w-3 h-3" /> Employees
           </span>
-          <span className="text-2xl font-extrabold text-slate-900 font-heading">{employeeCount} Self-Service</span>
+          <span className="text-2xl font-extrabold text-slate-900 font-heading">{employeeCount} own login</span>
         </div>
       </div>
 
@@ -264,7 +273,7 @@ export const UserManagement: React.FC = () => {
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search user name, email, or employee code..."
+                placeholder="Search by name, email or employee code..."
                 className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-[#1184b0] focus:outline-none"
               />
             </div>
@@ -277,11 +286,11 @@ export const UserManagement: React.FC = () => {
               onChange={(e) => setRoleFilter(e.target.value)}
               className="px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 bg-slate-50 focus:outline-none"
             >
-              <option value="ALL">All Roles</option>
-              <option value="SUPER_ADMIN">Super Admin Only</option>
-              <option value="FOUNDER">Founders Only</option>
-              <option value="HR">HR Only</option>
-              <option value="EMPLOYEE">Employees Only</option>
+              <option value="ALL">Everyone</option>
+              <option value="SUPER_ADMIN">Admins only</option>
+              <option value="FOUNDER">Founders only</option>
+              <option value="HR">HR only</option>
+              <option value="EMPLOYEE">Employees only</option>
             </select>
           </div>
         </div>
@@ -291,11 +300,11 @@ export const UserManagement: React.FC = () => {
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-slate-100">
               <tr>
-                <th className="py-3 px-5">User</th>
-                <th className="py-3 px-5">Role & Access Level</th>
-                <th className="py-3 px-5">Linked Employee ID</th>
-                <th className="py-3 px-5">Status</th>
-                <th className="py-3 px-5 text-right">Actions</th>
+                <th className="py-3 px-5">Person</th>
+                <th className="py-3 px-5">Can do</th>
+                <th className="py-3 px-5">Employee code</th>
+                <th className="py-3 px-5">Login</th>
+                <th className="py-3 px-5 text-right">Change</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -333,7 +342,7 @@ export const UserManagement: React.FC = () => {
                       {u.role === 'FOUNDER' && <Briefcase className="w-3 h-3 text-emerald-600" />}
                       {u.role === 'HR' && <Briefcase className="w-3 h-3 text-violet-600" />}
                       {u.role === 'EMPLOYEE' && <User className="w-3 h-3 text-sky-600" />}
-                      <span>{u.role}</span>
+                      <span>{ROLE_WORDS[u.role] ?? u.role}</span>
                     </span>
                   </td>
 
@@ -343,7 +352,7 @@ export const UserManagement: React.FC = () => {
                         #{u.empCode}
                       </span>
                     ) : (
-                      <span className="text-slate-400">N/A</span>
+                      <span className="text-slate-400">None</span>
                     )}
                   </td>
 
@@ -352,7 +361,7 @@ export const UserManagement: React.FC = () => {
                       u.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
                     }`}>
                       <span className={`w-1.5 h-1.5 rounded-full ${u.status === 'active' ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-                      <span className="capitalize">{u.status}</span>
+                      <span>{u.status === 'active' ? 'Switched on' : 'Switched off'}</span>
                     </span>
                   </td>
 
@@ -360,7 +369,7 @@ export const UserManagement: React.FC = () => {
                     {u.role !== 'SUPER_ADMIN' && (
                       <div className="flex items-center justify-end gap-1.5">
                         <button
-                          title="Reset Password"
+                          title="Set a new password"
                           onClick={() => {
                             setSelectedUserForReset(u);
                             setIsResetPassModalOpen(true);
@@ -371,7 +380,7 @@ export const UserManagement: React.FC = () => {
                         </button>
 
                         <button
-                          title="Toggle Active/Inactive"
+                          title="Switch this login on or off"
                           onClick={() => handleToggleStatus(u.id)}
                           className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-indigo-600 transition-colors"
                         >
@@ -379,7 +388,7 @@ export const UserManagement: React.FC = () => {
                         </button>
 
                         <button
-                          title="Delete Account"
+                          title="Delete this login"
                           onClick={() => handleDeleteUser(u.id, u.name)}
                           className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-rose-600 transition-colors"
                         >
@@ -399,12 +408,12 @@ export const UserManagement: React.FC = () => {
       {isCreateModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 animate-scale-in border border-slate-200">
-            <h3 className="text-lg font-bold text-slate-900 mb-1 font-heading">Create System Account</h3>
-            <p className="text-xs text-slate-500 mb-5">Provision login credentials for Founders or Employees</p>
+            <h3 className="text-lg font-bold text-slate-900 mb-1 font-heading">Add a login</h3>
+            <p className="text-xs text-slate-500 mb-5">Make a login so this person can sign in</p>
 
             <form onSubmit={handleCreateUser} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Account Role</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">What can this person do?</label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <button
                     type="button"
@@ -455,15 +464,16 @@ export const UserManagement: React.FC = () => {
                     }`}
                   >
                     <Crown className="w-3.5 h-3.5 text-amber-600" />
-                    <span>Super Admin</span>
+                    <span>Admin</span>
                   </button>
                 </div>
+                <p className="text-[11px] text-slate-500 mt-2">{ROLE_HELP[formData.role]}</p>
               </div>
 
               {formData.role === 'EMPLOYEE' && (
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Select Enrolled Employee (Or Type Code)
+                    Which employee is this?
                   </label>
                   <select
                     value={formData.empCode}
@@ -471,7 +481,7 @@ export const UserManagement: React.FC = () => {
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-[#1184b0] focus:outline-none"
                     required
                   >
-                    <option value="">-- Choose Employee from Biometric Directory --</option>
+                    <option value="">-- Choose the employee --</option>
                     {employeesList.map((emp) => (
                       <option key={emp.empCode} value={emp.empCode}>
                         #{emp.empCode} - {emp.name} ({emp.location || 'Budigere'})
@@ -482,19 +492,19 @@ export const UserManagement: React.FC = () => {
               )}
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Full Name</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Name</label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="e.g. Sudheer or Founder Name"
+                  placeholder="Full name"
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-[#1184b0] focus:outline-none"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Login Email</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Email (they sign in with this)</label>
                 <input
                   type="email"
                   value={formData.email}
@@ -506,7 +516,7 @@ export const UserManagement: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Password</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Password (you tell it to them)</label>
                 <input
                   type="password"
                   value={formData.password}
@@ -529,7 +539,7 @@ export const UserManagement: React.FC = () => {
                   type="submit"
                   className="px-5 py-2 text-xs font-bold bg-gradient-to-r from-[#1184b0] to-[#011638] text-white rounded-xl shadow-md"
                 >
-                  Create User Login
+                  Create login
                 </button>
               </div>
             </form>
@@ -541,14 +551,14 @@ export const UserManagement: React.FC = () => {
       {isResetPassModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 animate-scale-in border border-slate-200">
-            <h3 className="text-lg font-bold text-slate-900 mb-1 font-heading">Reset Password</h3>
+            <h3 className="text-lg font-bold text-slate-900 mb-1 font-heading">Set a new password</h3>
             <p className="text-xs text-slate-500 mb-4">
-              Enter a new password for <span className="font-bold text-slate-800">{selectedUserForReset?.name}</span>
+              Type a new password for <span className="font-bold text-slate-800">{selectedUserForReset?.name}</span>
             </p>
 
             <form onSubmit={handleResetPassword} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">New Password</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">New password</label>
                 <input
                   type="password"
                   value={newPassword}
@@ -571,7 +581,7 @@ export const UserManagement: React.FC = () => {
                   type="submit"
                   className="px-4 py-2 text-xs font-bold bg-gradient-to-r from-[#1184b0] to-[#011638] text-white rounded-xl shadow-md"
                 >
-                  Update Password
+                  Save password
                 </button>
               </div>
             </form>

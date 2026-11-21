@@ -7,6 +7,8 @@ interface StatusBadgeProps {
   size?: 'sm' | 'md' | 'lg';
   showIcon?: boolean;
   className?: string;
+  /** Plain-words text shown instead of the built-in label. */
+  label?: string;
 }
 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({
@@ -14,6 +16,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
   size = 'md',
   showIcon = true,
   className,
+  label: labelOverride,
 }) => {
   const normStatus = (status || '').toLowerCase();
 
@@ -63,7 +66,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
       )}
     >
       {showIcon && icon}
-      <span className="capitalize">{label}</span>
+      <span className="capitalize">{labelOverride ?? label}</span>
     </span>
   );
 };

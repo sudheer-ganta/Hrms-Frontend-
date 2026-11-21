@@ -76,7 +76,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
       setSites(siteData);
       setSiteDrafts(Object.fromEntries(siteData.map((st) => [st.siteId, { lat: st.geo ? String(st.geo.lat) : '', lng: st.geo ? String(st.geo.lng) : '', radiusM: st.geo ? String(st.geo.radiusM) : '' }])));
     } catch (err) {
-      setPageError(errorMessage(err, 'Failed to load settings'));
+      setPageError(errorMessage(err, 'Could not load settings.'));
     } finally {
       setIsLoading(false);
     }
@@ -149,7 +149,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {
-      setPageError(errorMessage(err, 'Failed to update policy'));
+      setPageError(errorMessage(err, 'Could not save. Please try again.'));
     } finally {
       setIsSaving(false);
     }
@@ -170,7 +170,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
       setPageError(null);
       loadSettingsData();
     } catch (err) {
-      setPageError(errorMessage(err, 'Failed to add holiday'));
+      setPageError(errorMessage(err, 'Could not add the holiday.'));
     }
   };
 
@@ -180,7 +180,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
       setPageError(null);
       loadSettingsData();
     } catch (err) {
-      setPageError(errorMessage(err, 'Failed to delete holiday'));
+      setPageError(errorMessage(err, 'Could not remove the holiday.'));
     }
   };
 
@@ -189,7 +189,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
       const updated = await api.toggleScheduler();
       setScheduler(updated);
     } catch (err) {
-      setPageError(errorMessage(err, 'Failed to toggle the scheduler'));
+      setPageError(errorMessage(err, 'Could not change the automatic update.'));
     }
   };
 
@@ -198,7 +198,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
       await api.triggerSchedulerNow();
       loadSettingsData();
     } catch (err) {
-      setPageError(errorMessage(err, 'Immediate sync failed'));
+      setPageError(errorMessage(err, 'Could not update attendance now.'));
     }
   };
 
@@ -212,7 +212,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
             <span>Settings</span>
           </h1>
           <p className="text-xs text-slate-500 font-sans mt-0.5">
-            Shift timings, holidays, automatic updates and payroll closing
+            Work hours, holidays, leave, PF and when the machines update
           </p>
         </div>
 
@@ -220,7 +220,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
         {saveSuccess && (
           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-100 text-emerald-700 text-xs font-bold animate-in fade-in">
             <Check className="w-4 h-4" />
-            Settings saved successfully!
+            Saved!
           </span>
         )}
       </div>
@@ -237,7 +237,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
           }`}
         >
           <Clock className="w-4 h-4" />
-          <span>Shifts</span>
+          <span>Work hours & pay rules</span>
         </button>
 
         <button
@@ -250,7 +250,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
           }`}
         >
           <CalendarDays className="w-4 h-4" />
-          <span>Holidays & Weekly Off ({policy?.holidays?.length || 0})</span>
+          <span>Holidays ({policy?.holidays?.length || 0})</span>
         </button>
 
         <button
@@ -263,7 +263,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
           }`}
         >
           <RefreshCw className="w-4 h-4" />
-          <span>Automatic Updates</span>
+          <span>Auto update</span>
           {scheduler?.isRunning && (
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
           )}
@@ -279,7 +279,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
           }`}
         >
           <Building2 className="w-4 h-4" />
-          <span>Attendance Machines ({sources.length})</span>
+          <span>Machines ({sources.length})</span>
         </button>
 
         <button
@@ -292,7 +292,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
           }`}
         >
           <Lock className="w-4 h-4" />
-          <span>Payroll Closing</span>
+          <span>Lock salary</span>
         </button>
 
         <button
@@ -305,7 +305,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
           }`}
         >
           <BookOpen className="w-4 h-4" />
-          <span>Rules</span>
+          <span>Company rules</span>
         </button>
       </div>
 
@@ -316,13 +316,13 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
           <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-card space-y-4">
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-2">
-                <h3 className="text-sm font-heading font-bold text-slate-900">Shifts</h3>
+                <h3 className="text-sm font-heading font-bold text-slate-900">Work hours</h3>
                 <p className="text-xs text-slate-500">
-                  A shift is its working hours plus its overtime hours. Everyone is on the default shift unless you pick another shift in their profile.
-                  Overtime is paid to people who have OT switched on (Employees page), worked out from their punch out.
+                  A shift is the time people work, plus the hours that count as overtime. Everyone follows the first shift unless you choose another one in their details.
+                  Overtime is paid only to people who have overtime switched on (Employees page).
                 </p>
                 <p className="text-[11px] font-semibold text-brand-700 bg-brand-50 border border-brand-100 rounded-lg px-3 py-2">
-                  Changes apply to every screen and to payroll from the moment you save (policy v{policy.version}). Months that are already closed keep the policy they were closed under.
+                  When you save, every screen and every salary uses the new rules straight away. Months that are already locked keep the rules they had.
                 </p>
               </div>
               <button
@@ -334,7 +334,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                 })}
                 className="shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-brand-500 text-white hover:bg-brand-600 disabled:opacity-40"
               >
-                <Plus className="w-4 h-4" /> Add shift
+                <Plus className="w-4 h-4" /> Add another shift
               </button>
             </div>
 
@@ -358,8 +358,8 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
           <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-card space-y-4">
             <div className="space-y-3 pb-4 border-b border-slate-100">
               <div>
-                <h3 className="text-sm font-heading font-bold text-slate-900">Weekly Off Days</h3>
-                <p className="text-xs text-slate-500">Used by attendance, payroll, leave and every calendar. Nothing else decides which days are off.</p>
+                <h3 className="text-sm font-heading font-bold text-slate-900">Weekly off days</h3>
+                <p className="text-xs text-slate-500">Tap the days the company is closed every week. Everything in the system follows this.</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 {DAY_NAMES.map((day: DayName) => {
@@ -377,29 +377,29 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                 })}
               </div>
               <div className="flex items-center gap-3">
-                <label className="text-xs font-bold text-slate-700 font-heading">Web punch location check</label>
+                <label className="text-xs font-bold text-slate-700 font-heading">Check location when punching from the website</label>
                 <select
                   value={policy.ess.geofenceMode}
                   onChange={(e) => setPolicy({ ...policy, ess: { geofenceMode: e.target.value as 'ENFORCE' | 'OFF' } })}
                   className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold bg-white"
                 >
-                  <option value="ENFORCE">Enforce site geofence</option>
-                  <option value="OFF">Off</option>
+                  <option value="ENFORCE">Yes, must be at the office</option>
+                  <option value="OFF">No, allow from anywhere</option>
                 </select>
-                <span className="text-[10px] text-slate-400">Enforced only for sites that have a location configured (Sources tab).</span>
+                <span className="text-[10px] text-slate-400">Works only for places where you have set the office location (Machines tab).</span>
               </div>
             </div>
 
             <div>
-              <h3 className="text-sm font-heading font-bold text-slate-900">Work on Weekly Off / Paid Holiday</h3>
-              <p className="text-xs text-slate-500">One rule, used by attendance, timesheet, portal and payroll</p>
+              <h3 className="text-sm font-heading font-bold text-slate-900">Working on an off day or a paid holiday</h3>
+              <p className="text-xs text-slate-500">What should happen when someone comes to work on a day off</p>
             </div>
             <div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {(['weeklyOff', 'paidHoliday'] as const).map((kind) => (
                   <div key={kind}>
                     <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">
-                      {kind === 'weeklyOff' ? 'Work on a weekly off' : 'Work on a paid holiday'}
+                      {kind === 'weeklyOff' ? 'Working on a weekly off' : 'Working on a paid holiday'}
                     </label>
                     <select
                       value={policy.offDayWork?.[kind]?.recognition ?? 'MANUAL'}
@@ -409,22 +409,22 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                       })}
                       className="w-full px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700"
                     >
-                      <option value="MANUAL">Manual: HR enters the days in the OT calculator</option>
-                      <option value="AUTOMATIC">Automatic: recognized from punches and paid</option>
+                      <option value="MANUAL">I will type the days myself (Overtime Pay screen)</option>
+                      <option value="AUTOMATIC">Automatic: counted from punches and paid</option>
                     </select>
                   </div>
                 ))}
               </div>
               <span className="text-[10px] text-slate-400 mt-1 block">
-                Automatic uses the half-day / full-day thresholds above (full day = 1, half day = 0.5) and the existing off-day pay rate.
+                Automatic uses the half-day and full-day limits above (full day counts 1, half day counts 0.5) and the usual off-day pay.
               </span>
             </div>
 
             <div>
-              <h3 className="text-sm font-heading font-bold text-slate-900">Overtime (OT) Pay</h3>
+              <h3 className="text-sm font-heading font-bold text-slate-900">Overtime pay</h3>
               <p className="text-xs text-slate-500">
-                Overtime is the time between a person&apos;s first and last punch that falls inside their shift&apos;s overtime hours (set in Shifts above), for people who have OT switched on.
-                It is added up each month and paid automatically. HR can still change an employee&apos;s hours in the OT Calculator.
+                Overtime is the time a person stays inside the overtime hours you set above, for people who have overtime switched on.
+                It is added up every month and paid automatically. You can still change a person&apos;s hours on the Overtime Pay screen.
               </p>
             </div>
 
@@ -446,7 +446,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">Hours per Day for the OT Hourly Rate</label>
+                <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">Working hours in one day (used for the overtime rate)</label>
                 <input
                   type="number"
                   min="1"
@@ -463,7 +463,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                   className="w-full px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 focus:ring-2 focus:ring-brand-500 outline-none"
                 />
                 <span className="text-[10px] text-slate-400 mt-1 block">
-                  OT hourly rate = (Basic + DA) / 26 / this value (default 8), times the OT multiplier.
+                  Overtime for one hour = (Basic + DA) ÷ 26 days ÷ this number, times the overtime multiplier. Usually 8.
                 </span>
               </div>
             </div>
@@ -474,13 +474,13 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-heading font-bold text-slate-900 flex items-center gap-2">
-                  <span>Annual Leave Entitlements & Quotas</span>
+                  <span>Leave days per year</span>
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                    SuperAdmin Control
+                    Admin only
                   </span>
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Configure company annual leave quotas for all employees. Balances update dynamically in Employee Self-Service.
+                  How many leave days each person gets in a year. Each person sees their balance in their own login.
                 </p>
               </div>
             </div>
@@ -488,7 +488,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">
-                  Casual Leave (CL) Quota
+                  Casual leave
                 </label>
                 <input
                   type="number"
@@ -506,12 +506,12 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                   })}
                   className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
                 />
-                <span className="text-[10px] text-slate-400 mt-1 block">Annual days granted per employee</span>
+                <span className="text-[10px] text-slate-400 mt-1 block">Days per year for each person</span>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">
-                  Sick Leave (SL) Quota
+                  Sick leave
                 </label>
                 <input
                   type="number"
@@ -529,12 +529,12 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                   })}
                   className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
                 />
-                <span className="text-[10px] text-slate-400 mt-1 block">Annual medical/sick leave entitlement</span>
+                <span className="text-[10px] text-slate-400 mt-1 block">Days per year for illness</span>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">
-                  Earned Leave (EL) Quota
+                  Earned leave
                 </label>
                 <input
                   type="number"
@@ -552,7 +552,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                   })}
                   className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
                 />
-                <span className="text-[10px] text-slate-400 mt-1 block">Paid privilege/annual leaves</span>
+                <span className="text-[10px] text-slate-400 mt-1 block">Paid leave days per year</span>
               </div>
             </div>
           </div>
@@ -562,23 +562,23 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
           <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-card space-y-4">
             <div>
               <h3 className="text-sm font-heading font-bold text-slate-900 flex items-center gap-2">
-                <span>Provident Fund (PF) Rules</span>
+                <span>PF rules</span>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                  SuperAdmin Control
+                  Admin only
                 </span>
               </h3>
               <p className="text-xs text-slate-500">
-                These drive every PF figure on payroll and the PF &amp; Deductions page. Rates are a percentage of the PF wages.
-                A change applies to months that are still open; closed months keep the figures they were closed with.
+                Change these only when the government changes PF rules. Every PF amount on salary and on the PF page follows them.
+                A change applies to months that are not locked yet.
               </p>
             </div>
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {([
-                { key: 'employeeRatePct', label: 'Employee PF rate (%)', hint: 'The employer pays the same amount', max: 100 },
-                { key: 'epsRatePct', label: 'Employer pension share (%)', hint: 'Part of the employer share that goes to pension; the rest goes to EPF', max: 100 },
-                { key: 'adminRatePct', label: 'Admin charge (%)', hint: 'Employer PF admin charge', max: 10 },
-                { key: 'edliRatePct', label: 'EDLI (%)', hint: 'Employer insurance contribution', max: 10 },
+                { key: 'employeeRatePct', label: 'PF cut from the employee (%)', hint: 'The company adds the same amount', max: 100 },
+                { key: 'epsRatePct', label: 'Company share for pension (%)', hint: 'Part of the company share that goes to pension; the rest goes to PF', max: 100 },
+                { key: 'adminRatePct', label: 'PF office charge (%)', hint: 'Paid by the company', max: 10 },
+                { key: 'edliRatePct', label: 'Insurance (EDLI) (%)', hint: 'Paid by the company', max: 10 },
               ] as const).map((f) => (
                 <div key={f.key}>
                   <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">{f.label}</label>
@@ -600,7 +600,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">PF wage ceiling</label>
+              <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">PF salary limit (PF is cut only up to this much salary)</label>
               <div className="space-y-2">
                 {policy.statutory.pf.ceilings.map((row, idx) => {
                   const setRow = (patch: Partial<typeof row>) => setPolicy({
@@ -610,7 +610,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                   return (
                     <div key={idx} className="flex flex-wrap items-center gap-3">
                       {idx === 0 ? (
-                        <span className="w-40 px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-500">Until the next change</span>
+                        <span className="w-40 px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-500">From the start</span>
                       ) : (
                         <input
                           type="date"
@@ -653,10 +653,10 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                 className="mt-3 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-1.5"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>Add a ceiling change</span>
+                <span>Add a new limit from a date</span>
               </button>
               <span className="text-[10px] text-slate-400 mt-2 block">
-                A new ceiling applies from its date. If the date falls inside a month, that month is split and each part is prorated over the days of the month.
+                A new limit counts from its date. If the date is in the middle of a month, that month is split into two parts by days.
               </span>
             </div>
           </div>
@@ -669,7 +669,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
               className="px-5 py-2.5 bg-gradient-to-r from-brand-500 to-brand-base hover:opacity-95 text-white text-xs font-heading font-bold rounded-xl shadow-md shadow-brand-500/20 transition-all flex items-center gap-2 active:scale-95"
             >
               <Save className="w-4 h-4" />
-              <span>{isSaving ? 'Saving Changes...' : 'Save Shift Policies'}</span>
+              <span>{isSaving ? 'Saving...' : 'Save'}</span>
             </button>
           </div>
         </form>
@@ -688,13 +688,13 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
           {/* Add Holiday Form */}
           <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-card space-y-4">
             <div>
-              <h3 className="text-sm font-heading font-bold text-slate-900">Add Company Holiday</h3>
-              <p className="text-xs text-slate-500">A paid holiday is a company day-off for everyone. Untick it for an optional holiday that is a normal working day.</p>
+              <h3 className="text-sm font-heading font-bold text-slate-900">Add a holiday</h3>
+              <p className="text-xs text-slate-500">A paid holiday means the company is closed and everyone is paid. Untick the box if it is optional and people work as normal.</p>
             </div>
 
             <form onSubmit={handleAddHoliday} className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
               <div>
-                <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">Holiday Date</label>
+                <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">Date</label>
                 <input
                   type="date"
                   value={newHolidayDate}
@@ -705,7 +705,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
               </div>
 
               <div className="sm:col-span-2">
-                <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">Holiday Name</label>
+                <label className="block text-xs font-bold text-slate-700 font-heading mb-1.5">Name</label>
                 <input
                   type="text"
                   placeholder="e.g. Diwali, Independence Day"
@@ -718,14 +718,14 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
 
               <div className="space-y-1.5">
                 <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700">
-                  <input type="checkbox" checked={newHolidayPaid} onChange={(e) => setNewHolidayPaid(e.target.checked)} /> Company day-off (paid)
+                  <input type="checkbox" checked={newHolidayPaid} onChange={(e) => setNewHolidayPaid(e.target.checked)} /> Company is closed (paid)
                 </label>
                 <button
                   type="submit"
                   className="w-full px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-xs font-heading font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>Add Holiday</span>
+                  <span>Add</span>
                 </button>
               </div>
             </form>
@@ -733,7 +733,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
 
           {/* Holiday List */}
           <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-card space-y-4">
-            <h3 className="text-sm font-heading font-bold text-slate-900">Company Holidays Calendar</h3>
+            <h3 className="text-sm font-heading font-bold text-slate-900">All holidays</h3>
             <div className="divide-y divide-slate-100">
               {policy.holidays.map((hol) => (
                 <div key={hol.id} className="py-3 flex items-center justify-between group">
@@ -744,7 +744,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                     </div>
                     <div>
                       <h4 className="font-heading font-bold text-slate-900 text-xs">{hol.name}</h4>
-                      <p className="text-[10px] text-slate-400 font-mono">{formatBusinessDate(hol.date)} • {hol.type} • {hol.paid ? 'paid day-off' : 'working day (optional)'}</p>
+                      <p className="text-[10px] text-slate-400 font-mono">{formatBusinessDate(hol.date)} • {hol.type === 'NATIONAL' ? 'National' : hol.type === 'FESTIVAL' ? 'Festival' : 'Optional'} • {hol.paid ? 'company closed (paid)' : 'normal working day (optional)'}</p>
                     </div>
                   </div>
 
@@ -752,7 +752,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                     type="button"
                     onClick={() => handleRemoveHoliday(hol.id)}
                     className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
-                    title="Delete Holiday"
+                    title="Remove this holiday"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -769,8 +769,8 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
           <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-card space-y-5">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-heading font-bold text-slate-900">Automated Background Sync Scheduler</h3>
-                <p className="text-xs text-slate-500">Periodically fetches punches from all 3 biometric machines quietly in the background</p>
+                <h3 className="text-sm font-heading font-bold text-slate-900">Automatic attendance update</h3>
+                <p className="text-xs text-slate-500">The system collects punches from all the attendance machines by itself, so you do not have to</p>
               </div>
 
               <span className={`text-xs px-3 py-1 rounded-full font-bold flex items-center gap-1.5 ${
@@ -779,32 +779,32 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                   : 'bg-slate-100 text-slate-600 border border-slate-200'
               }`}>
                 <span className={`w-2 h-2 rounded-full ${scheduler?.isRunning ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
-                {scheduler?.isRunning ? 'Scheduler Active' : 'Scheduler Paused'}
+                {scheduler?.isRunning ? 'Working' : 'Stopped'}
               </span>
             </div>
 
             {/* Scheduler Status Stats */}
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Frequency</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase">How often</span>
                 <span className="text-sm font-extrabold text-slate-900 block mt-0.5">
-                  Every {scheduler?.intervalMinutes || 5} Minutes
+                  Every {scheduler?.intervalMinutes || 5} minutes
                 </span>
               </div>
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Total Auto-Cycles</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Times done so far</span>
                 <span className="text-sm font-extrabold text-slate-900 block mt-0.5">
-                  {scheduler?.totalRuns || 0} Executed
+                  {scheduler?.totalRuns || 0} times
                 </span>
               </div>
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Last Sync Run</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Last updated</span>
                 <span className="text-xs font-bold text-slate-700 block mt-1 truncate">
                   {scheduler?.lastRunAt ? new Date(scheduler.lastRunAt).toLocaleTimeString() : 'Running...'}
                 </span>
               </div>
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Next Sync In</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Next update</span>
                 <span className="text-xs font-bold text-emerald-600 block mt-1 truncate">
                   {scheduler?.nextRunAt ? new Date(scheduler.nextRunAt).toLocaleTimeString() : 'Scheduled'}
                 </span>
@@ -823,7 +823,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                 }`}
               >
                 {scheduler?.isRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                <span>{scheduler?.isRunning ? 'Pause Auto-Sync' : 'Resume Auto-Sync'}</span>
+                <span>{scheduler?.isRunning ? 'Stop automatic update' : 'Start automatic update'}</span>
               </button>
 
               <button
@@ -832,7 +832,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                 className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-xs font-heading font-bold rounded-xl shadow-xs transition-all flex items-center gap-2"
               >
                 <RefreshCw className="w-4 h-4" />
-                <span>Trigger Immediate Sync Now</span>
+                <span>Update attendance now</span>
               </button>
             </div>
           </div>
@@ -846,11 +846,10 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
           <div className="p-5 rounded-2xl bg-sky-50 border border-sky-200 text-xs text-slate-700 space-y-2 shadow-xs">
             <div className="flex items-center gap-2 font-heading font-bold text-brand-700 text-sm">
               <ShieldCheck className="w-5 h-5 text-brand-600" />
-              <span>Security & Credential Isolation Architecture</span>
+              <span>Machine passwords are kept safe</span>
             </div>
             <p className="leading-relaxed text-slate-600 text-xs font-sans">
-              In accordance with security standards, all Corporate IDs, Usernames, and Passwords are
-              stored strictly in server-side environment variables (<code className="bg-white px-1.5 py-0.5 rounded border border-sky-200 text-brand-700 font-mono font-bold">.env</code>).
+              The logins for the attendance machines are never shown on this screen. They are kept safely on the server (in the file <code className="bg-white px-1.5 py-0.5 rounded border border-sky-200 text-brand-700 font-mono font-bold">.env</code>).
             </p>
           </div>
 
@@ -870,11 +869,11 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
 
                 <div className="space-y-1.5 text-[11px] text-slate-600 border-t border-slate-100 pt-2 font-mono">
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Raw punches:</span>
+                    <span className="text-slate-500">Every punch:</span>
                     <span className="text-slate-900 font-bold">{src.lastRawSync ? `${src.lastRawSync.status} · ${formatInstantIst(src.lastRawSync.at)}` : 'never'}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Daily IN/OUT:</span>
+                    <span className="text-slate-500">Day summary:</span>
                     <span className="text-slate-900 font-bold">{src.lastInOutSync ? `${src.lastInOutSync.status} · ${formatInstantIst(src.lastInOutSync.at)}` : 'never'}</span>
                   </div>
                   {(src.lastRawSync?.error || src.lastInOutSync?.error) && (
@@ -887,11 +886,11 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                   const setDraft = (patch: Partial<typeof draft>) => setSiteDrafts((d) => ({ ...d, [src.siteId]: { ...draft, ...patch } }));
                   return (
                     <div className="border-t border-slate-100 pt-3 space-y-2">
-                      <div className="text-[11px] font-bold text-slate-700 font-heading">Punch location (geofence)</div>
+                      <div className="text-[11px] font-bold text-slate-700 font-heading">Office location for website punching</div>
                       <div className="grid grid-cols-3 gap-1.5">
                         <input placeholder="Latitude" value={draft.lat} onChange={(e) => setDraft({ lat: e.target.value })} className="px-2 py-1.5 rounded-lg border border-slate-200 text-[11px] font-mono" />
                         <input placeholder="Longitude" value={draft.lng} onChange={(e) => setDraft({ lng: e.target.value })} className="px-2 py-1.5 rounded-lg border border-slate-200 text-[11px] font-mono" />
-                        <input placeholder="Radius m" value={draft.radiusM} onChange={(e) => setDraft({ radiusM: e.target.value })} className="px-2 py-1.5 rounded-lg border border-slate-200 text-[11px] font-mono" />
+                        <input placeholder="Distance (metres)" value={draft.radiusM} onChange={(e) => setDraft({ radiusM: e.target.value })} className="px-2 py-1.5 rounded-lg border border-slate-200 text-[11px] font-mono" />
                       </div>
                       <button
                         type="button"
@@ -909,7 +908,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                       >
                         Save location
                       </button>
-                      <p className="text-[10px] text-slate-400 font-sans">{sites.find((st) => st.siteId === src.siteId)?.geo ? 'Web punches must be inside this circle.' : 'No location set: web punches for this site are not location-checked.'}</p>
+                      <p className="text-[10px] text-slate-400 font-sans">{sites.find((st) => st.siteId === src.siteId)?.geo ? 'People must be within this distance of the office to punch from the website.' : 'No location set, so website punches are not checked for this place.'}</p>
                     </div>
                   );
                 })()}
@@ -925,13 +924,12 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
           <div className="p-5 rounded-2xl bg-sky-50 border border-sky-200 text-xs text-slate-700 space-y-2 shadow-xs">
             <div className="flex items-center gap-2 font-heading font-bold text-brand-700 text-sm">
               <Lock className="w-5 h-5 text-brand-600" />
-              <span>Why close a month?</span>
+              <span>Why lock a month?</span>
             </div>
             <p className="leading-relaxed text-slate-600 text-xs font-sans">
-              Payroll is normally calculated live from current attendance data. That's fine day-to-day, but it
-              means numbers for a past month could still shift if attendance gets corrected after you've already
-              paid salaries. Closing a month locks in a permanent record of exactly what was paid — it never
-              changes again unless you explicitly reopen it.
+              Until you lock a month, salaries follow the attendance and can still change if attendance is corrected.
+              Locking keeps a permanent copy of exactly what was paid. It never changes again unless an admin opens
+              the month again. The easy way to do this is the Pay Salary page in the menu.
             </p>
           </div>
 
@@ -956,7 +954,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
             )}
 
             {isPayrollLoading ? (
-              <div className="p-8 text-center text-xs text-slate-400 font-medium">Loading payroll status…</div>
+              <div className="p-8 text-center text-xs text-slate-400 font-medium">Loading…</div>
             ) : payrollRunStatus ? (
               <div
                 className={`p-5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
@@ -985,7 +983,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                   </div>
                   <div>
                     <div className="font-heading font-bold text-sm text-slate-900">
-                      {payrollMonth} — {payrollRunStatus.status === 'CLOSED' ? 'Closed & Locked' : payrollRunStatus.status === 'REOPENED' ? 'Reopened (live again)' : 'Open (live)'}
+                      {payrollMonth} — {payrollRunStatus.status === 'CLOSED' ? 'Locked' : payrollRunStatus.status === 'REOPENED' ? 'Opened again (can change)' : 'Not locked (can change)'}
                     </div>
                     <p className="text-[11px] text-slate-600 mt-0.5">
                       {payrollRunStatus.status === 'CLOSED' &&
@@ -993,14 +991,14 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                       {payrollRunStatus.status === 'REOPENED' &&
                         `Reopened by ${payrollRunStatus.reopenedBy} on ${formatInstantIst(payrollRunStatus.reopenedAt)} IST${payrollRunStatus.reopenReason ? ` (${payrollRunStatus.reopenReason})` : ''}: recalculating live until closed again.`}
                       {payrollRunStatus.status === 'OPEN' &&
-                        'Never closed — figures are calculated live from current attendance data.'}
+                        'Not locked yet. Salaries follow the attendance and can still change.'}
                     </p>
                   </div>
                 </div>
 
                 {payrollRunStatus.status === 'CLOSED' ? (
                   !isSuperAdmin ? (
-                    <span className="text-[11px] font-semibold text-amber-800 bg-white border border-amber-300 rounded-xl px-3 py-2 shrink-0">Only a Super Admin can reopen a closed month</span>
+                    <span className="text-[11px] font-semibold text-amber-800 bg-white border border-amber-300 rounded-xl px-3 py-2 shrink-0">Only an admin can open a locked month again</span>
                   ) : (
                   <button
                     type="button"
@@ -1019,7 +1017,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                     className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-brand-500 to-brand-base hover:opacity-95 text-white rounded-xl text-xs font-heading font-bold shadow-md shadow-brand-500/20 transition-all active:scale-95 shrink-0"
                   >
                     <Lock className="w-3.5 h-3.5" />
-                    <span>Review &amp; Close {payrollMonth}</span>
+                    <span>Check and lock {payrollMonth}</span>
                   </button>
                 )}
               </div>
@@ -1029,11 +1027,11 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
           {/* History */}
           <div className="rounded-2xl bg-white border border-slate-200/80 shadow-card overflow-hidden">
             <div className="p-4 border-b border-slate-200 bg-slate-50/80">
-              <h3 className="font-heading font-bold text-sm text-slate-900">Payroll Close History</h3>
-              <p className="text-[11px] text-slate-500">Every month that's been closed, with who closed it and when</p>
+              <h3 className="font-heading font-bold text-sm text-slate-900">Locked months</h3>
+              <p className="text-[11px] text-slate-500">Every month that was locked, who locked it and when</p>
             </div>
             {payrollRunHistory.length === 0 ? (
-              <div className="p-6 text-center text-xs text-slate-400 font-medium">No months closed yet.</div>
+              <div className="p-6 text-center text-xs text-slate-400 font-medium">No month has been locked yet.</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
@@ -1041,10 +1039,10 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                     <tr>
                       <th className="py-3 px-4">Month</th>
                       <th className="py-3 px-4">Status</th>
-                      <th className="py-3 px-4">Closed By</th>
-                      <th className="py-3 px-4">Closed At</th>
-                      <th className="py-3 px-4 text-right">Employees</th>
-                      <th className="py-3 px-4 text-right">Total Net Pay</th>
+                      <th className="py-3 px-4">Locked by</th>
+                      <th className="py-3 px-4">Locked on</th>
+                      <th className="py-3 px-4 text-right">People</th>
+                      <th className="py-3 px-4 text-right">Total paid</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-medium text-slate-700">

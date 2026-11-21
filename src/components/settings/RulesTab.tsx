@@ -20,7 +20,7 @@ export const RulesTab: React.FC = () => {
     try {
       setDoc(await api.getRules());
     } catch (err) {
-      setError(errorMessage(err, 'Could not load the rules.'));
+      setError(errorMessage(err, 'Could not load the company rules.'));
     }
   };
 
@@ -63,10 +63,9 @@ export const RulesTab: React.FC = () => {
           <span>Company rules, in one place</span>
         </div>
         <p className="leading-relaxed text-slate-600">
-          Everything below is how attendance and payroll work right now. It is written by the system from the live settings, so
-          it always matches what is actually applied. To change a number, use the tab named under each heading.
+          This is how attendance and salary work right now. The system writes it from your current settings, so it is always correct. You cannot type here. To change something, go to the place named at the top right of each box.
         </p>
-        <p className="text-[11px] text-slate-500 font-mono">Settings version {doc.policyVersion} · Payroll rules {doc.payrollRulesVersion}</p>
+        <p className="text-[11px] text-slate-500 font-mono">Settings number {doc.policyVersion} · Salary rules {doc.payrollRulesVersion}</p>
       </div>
 
       <div className="relative max-w-md">
@@ -75,13 +74,13 @@ export const RulesTab: React.FC = () => {
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search the rules (e.g. Sunday, PF, late)"
+          placeholder="Search (for example Sunday, PF, late)"
           aria-label="Search the rules"
           className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
         />
       </div>
 
-      {sections.length === 0 && <div className="py-10 text-center text-xs text-slate-400 font-semibold">No rule matches "{query}".</div>}
+      {sections.length === 0 && <div className="py-10 text-center text-xs text-slate-400 font-semibold">Nothing found for "{query}".</div>}
 
       {sections.map((section) => (
         <section key={section.id} className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-card space-y-4">
@@ -89,7 +88,7 @@ export const RulesTab: React.FC = () => {
             <h2 className="text-sm font-heading font-extrabold text-slate-900">{section.title}</h2>
             <span className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 w-fit">
               <Pencil className="w-3 h-3" />
-              {section.editableIn ? `Change in: ${section.editableIn}` : 'Fixed in the payroll rules'}
+              {section.editableIn ? `Where to change it: ${section.editableIn}` : 'Fixed by the company rules. Cannot be changed here.'}
             </span>
           </div>
           <dl className="divide-y divide-slate-100">

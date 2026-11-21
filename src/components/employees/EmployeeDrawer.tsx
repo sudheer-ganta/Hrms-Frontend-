@@ -122,7 +122,7 @@ export const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({ isOpen, onClose,
                 <span className="text-[9px] text-slate-400 font-medium block">{payroll ? `of ${payroll.elapsedDays}d elapsed` : ''}</span>
               </div>
               <div className="p-2.5 bg-white rounded-xl border border-slate-200/80 shadow-xs text-center">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">LOP</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Days lost</span>
                 <span className="text-sm font-extrabold font-heading text-rose-600 mt-0.5 block">{payroll ? `${payroll.lopDays}d` : 'N/A'}</span>
                 <span className="text-[9px] text-slate-400 font-medium block">No-Pay Days</span>
               </div>

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { User, AuthContextType } from '../types/auth.types';
+import { User, AuthContextType, AuthResponse } from '../types/auth.types';
 import { api, TOKEN_STORAGE_KEY, USER_STORAGE_KEY } from '../services/api';
 import { normalizeError } from '../lib/apiError';
 import { initRealtimeSync, disconnectRealtimeSync, notifyDataChanged } from '../services/dataSync';
@@ -46,7 +46,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (!cancelled) {
             setUser(current);
             writeStorage(USER_STORAGE_KEY, JSON.stringify(current));
-            initRealtimeSync();
+            if (!current.mustChangePassword) initRealtimeSync(); // the live stream is blocked until the password is changed
           }
         } catch (err) {
           const n = normalizeError(err);
@@ -61,6 +61,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (identifier: string, password: string) => {
     const data = await api.login(identifier.trim(), password); // errors propagate as ApiError for the caller to render
+    setToken(data.token);
+    setUser(data.user);
+    writeStorage(TOKEN_STORAGE_KEY, data.token);
+    writeStorage(USER_STORAGE_KEY, JSON.stringify(data.user));
+    if (!data.user.mustChangePassword) initRealtimeSync();
+    notifyDataChanged();
+  };
+
+  // After the forced password change the server returns a fresh token (the old one is revoked).
+  const completePasswordChange = (data: AuthResponse) => {
     setToken(data.token);
     setUser(data.user);
     writeStorage(TOKEN_STORAGE_KEY, data.token);
@@ -82,6 +92,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isLoading,
     login,
     logout,
+    completePasswordChange,
     isSuperAdmin: user?.role === 'SUPER_ADMIN',
     isFounder: user?.role === 'FOUNDER',
     isHr: user?.role === 'HR',

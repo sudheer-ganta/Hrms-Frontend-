@@ -13,6 +13,7 @@ import {
   Calculator,
   PiggyBank,
   ClipboardCheck,
+  Wallet,
   X
 } from 'lucide-react';
 import { AttendanceSource } from '../../types';
@@ -54,6 +55,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ sources, isOpen = false, onClo
   ];
 
   const payrollItems: NavItem[] = [
+    { to: '/pay-run', label: 'Pay Salary', icon: Wallet, iconColor: 'text-emerald-600' },
     { to: '/employees', label: 'Employees & Salary', icon: Users, iconColor: 'text-emerald-500' },
     { to: '/portal', label: 'Employee Details', icon: UserCheck, iconColor: 'text-sky-600' },
     { to: '/ot-calculator', label: 'Overtime Pay', icon: Calculator, iconColor: 'text-indigo-500' },
@@ -61,9 +63,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ sources, isOpen = false, onClo
   ];
 
   const systemItems: NavItem[] = [
-    { to: '/sync-history', label: 'Machine Sync Log', icon: History, iconColor: 'text-amber-500' },
+    { to: '/sync-history', label: 'Attendance Updates', icon: History, iconColor: 'text-amber-500' },
     { to: '/settings', label: 'Settings', icon: Settings, iconColor: 'text-slate-500' },
-    { to: '/user-management', label: 'Users & Logins', icon: UserPlus, iconColor: 'text-brand-600' },
+    { to: '/user-management', label: 'Logins', icon: UserPlus, iconColor: 'text-brand-600' },
   ];
 
   const founderGroups: NavGroup[] = [
