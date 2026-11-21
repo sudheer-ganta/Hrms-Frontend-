@@ -215,9 +215,10 @@ export const MyPortal: React.FC = () => {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2.5 shrink-0">
-            <button onClick={() => openModal('leave')} className="px-3.5 py-2 bg-gradient-to-r from-[#1184b0] to-[#011638] text-white text-xs font-bold rounded-xl shadow-md flex items-center gap-1.5"><Plus className="w-3.5 h-3.5" /> Apply Leave</button>
-            <button onClick={() => openModal('other')} className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-[#1184b0]" /> Regularize / WFH / OD</button>
+          {/* Stacked as one block of equal-width buttons, like a side panel */}
+          <div className="flex flex-col gap-2.5 w-full md:w-60 shrink-0">
+            <button onClick={() => openModal('leave')} className="w-full px-4 py-2.5 bg-gradient-to-r from-[#1184b0] to-[#011638] text-white text-xs font-bold rounded-xl shadow-md flex items-center justify-center gap-2"><Plus className="w-4 h-4" /> Apply Leave</button>
+            <button onClick={() => openModal('other')} className="w-full px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 flex items-center justify-center gap-2"><Clock className="w-4 h-4 text-[#1184b0]" /> Regularize / WFH / OD</button>
           </div>
         </div>
       )}
