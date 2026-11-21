@@ -49,6 +49,7 @@ export const UserManagement: React.FC = () => {
   const [isResetPassModalOpen, setIsResetPassModalOpen] = useState(false);
   const [selectedUserForReset, setSelectedUserForReset] = useState<AppUser | null>(null);
   const [newPassword, setNewPassword] = useState('');
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Form state
   const [formData, setFormData] = useState<{ role: 'SUPER_ADMIN' | 'FOUNDER' | 'HR' | 'EMPLOYEE'; empCode: string; name: string; email: string; password: string }>({
@@ -92,8 +93,24 @@ export const UserManagement: React.FC = () => {
     });
   };
 
+  // Same password rules as the server (the server stays the authority); checked here so the message is short and plain.
+  const passwordProblem = (password: string, email: string, empCode: string): string | null => {
+    const missing: string[] = [];
+    if (password.length < 10) missing.push('at least 10 characters');
+    if (!/[A-Za-z]/.test(password)) missing.push('a letter');
+    if (!/\d/.test(password)) missing.push('a number');
+    if (missing.length) return `The password needs ${missing.join(', ')}. Example: Welcome@2026`;
+    const lower = password.toLowerCase();
+    const same = [email.trim().toLowerCase(), email.trim().toLowerCase().split('@')[0], empCode.trim().toLowerCase()].some((v) => v.length >= 3 && lower === v);
+    if (same) return 'The password cannot be the same as the email or the employee code. Choose a different one.';
+    return null;
+  };
+
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
+    const problem = passwordProblem(formData.password, formData.email, formData.role === 'EMPLOYEE' ? formData.empCode : '');
+    if (problem) { setFormError(problem); return; }
     try {
       const payload: CreateUserInput = {
         email: formData.email.trim(),
@@ -108,8 +125,7 @@ export const UserManagement: React.FC = () => {
       setFormData({ role: 'EMPLOYEE', empCode: '', name: '', email: '', password: '' });
       loadData();
     } catch (err) {
-      const message = errorMessage(err, 'Could not create the login.');
-      setNotification({ type: 'error', message });
+      setFormError(errorMessage(err, 'Could not create the login.')); // shown inside the form, where the admin is looking
     }
   };
 
@@ -224,7 +240,7 @@ export const UserManagement: React.FC = () => {
           </button>
 
           <button
-            onClick={() => setIsCreateModalOpen(true)}
+            onClick={() => { setFormError(null); setIsCreateModalOpen(true); }}
             className="px-5 py-3 bg-white text-[#011638] hover:bg-sky-50 text-xs font-bold rounded-2xl transition-all shadow-lg flex items-center gap-2 active:scale-95 shrink-0"
           >
             <UserPlus className="w-4 h-4 text-[#1184b0]" />
@@ -520,12 +536,17 @@ export const UserManagement: React.FC = () => {
                 <input
                   type="password"
                   value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  onChange={(e) => { setFormError(null); setFormData({ ...formData, password: e.target.value }); }}
                   placeholder="At least 10 characters, letters and digits" autoComplete="new-password" minLength={10}
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-[#1184b0] focus:outline-none"
                   required
                 />
+                <p className="text-[11px] text-slate-500 mt-1">At least 10 characters with a letter and a number, and not the same as the email or employee code. They will be asked to change it when they first sign in.</p>
               </div>
+
+              {formError && (
+                <div role="alert" className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-semibold">{formError}</div>
+              )}
 
               <div className="flex items-center justify-end gap-2 pt-3">
                 <button
