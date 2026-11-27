@@ -129,7 +129,7 @@ export const EmployeeDashboard: React.FC = () => {
                     <div className={`w-10 h-8 rounded-lg border flex items-center justify-center font-bold text-xs ${meta.cell}`}>{meta.short}</div>
                     <div>
                       <span className="text-xs font-extrabold text-slate-900 group-hover:text-brand-600 transition-colors">{formatBusinessDay(d.businessDate)}</span>
-                      <span className="ml-2 text-[10px] text-slate-500">{d.statusLabel}{d.isLate ? ' · late' : ''}</span>
+                      <span className="ml-2 text-[10px] text-slate-500">{d.inProgress ? 'Checked in' : d.statusLabel}{d.isLate ? ' · late' : ''}</span>
                       <div className="text-[11px] text-slate-500">In {d.firstIn ?? '--:--'} · Out {d.lastOut ?? '--:--'}</div>
                     </div>
                   </div>

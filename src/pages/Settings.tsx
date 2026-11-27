@@ -334,7 +334,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
         <form onSubmit={handleSavePolicy} className="space-y-6">
           {/* Shifts */}
           <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-card space-y-4">
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
               <div className="space-y-2">
                 <h3 className="text-sm font-heading font-bold text-slate-900">Work hours</h3>
                 <p className="text-xs text-slate-500">
@@ -352,7 +352,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                   ...policy,
                   shifts: [...policy.shifts, { ...policy.shift, shiftName: `Shift ${policy.shifts.length + 1}`, otWindows: [] }],
                 })}
-                className="shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-brand-500 text-white hover:bg-brand-600 disabled:opacity-40"
+                className="shrink-0 self-start inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-brand-500 text-white hover:bg-brand-600 disabled:opacity-40"
               >
                 <Plus className="w-4 h-4" /> Add another shift
               </button>
@@ -396,7 +396,7 @@ export const Settings: React.FC<SettingsPageProps> = ({ sources }) => {
                   );
                 })}
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
                 <label className="text-xs font-bold text-slate-700 font-heading">Check location when punching from the website</label>
                 <select
                   value={policy.ess.geofenceMode}

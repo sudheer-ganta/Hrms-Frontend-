@@ -282,7 +282,7 @@ export const Approvals: React.FC = () => {
       {/* Search & Tabs Controls */}
       <div className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-card flex flex-col md:flex-row md:items-center justify-between gap-3">
         {/* Status Tabs */}
-        <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-xl text-xs font-semibold">
+        <div className="flex items-center gap-1 sm:gap-1.5 bg-slate-100 p-1.5 rounded-xl text-xs font-semibold overflow-x-auto max-w-full [&>button]:shrink-0 [&>button]:px-2.5 sm:[&>button]:px-3.5">
           <button
             type="button"
             onClick={() => setStatusTab('PENDING')}

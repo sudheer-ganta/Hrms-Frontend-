@@ -11,7 +11,7 @@ export const to12h = (hhmm?: string | null): string => {
   return `${h % 12 || 12}:${m[2]} ${h >= 12 ? 'PM' : 'AM'}`;
 };
 
-const sel = 'px-2.5 py-2 rounded-xl border border-slate-200 bg-white text-xs font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none disabled:opacity-40';
+const sel = 'min-w-0 flex-1 sm:flex-none px-1.5 sm:px-2.5 py-2 rounded-xl border border-slate-200 bg-white text-xs font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none disabled:opacity-40';
 const pad = (n: number) => String(n).padStart(2, '0');
 
 interface TimeInputProps {
@@ -34,7 +34,7 @@ export const TimeInput: React.FC<TimeInputProps> = ({ value, onChange, allowEmpt
   const emit = (h12: number, min: number, isPm: boolean) => onChange(`${pad((h12 % 12) + (isPm ? 12 : 0))}:${pad(min)}`);
 
   return (
-    <div className="flex items-center gap-1.5" role="group" aria-label={`${ariaLabel} (IST)`}>
+    <div className="flex items-center gap-1 sm:gap-1.5 max-w-full" role="group" aria-label={`${ariaLabel} (IST)`}>
       <select
         aria-label={`${ariaLabel} hour`}
         value={hour12}

@@ -274,17 +274,17 @@ export const Employees: React.FC<EmployeesPageProps> = ({
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-bold border-b border-slate-200 text-[10px]">
                 <tr>
-                  <th className="py-3.5 px-4 whitespace-nowrap">ID</th>
-                  <th className="py-3.5 px-4">Name</th>
-                  <th className="py-3.5 px-4">Job</th>
-                  <th className="py-3.5 px-4 whitespace-nowrap">DOB</th>
-                  <th className="py-3.5 px-4 whitespace-nowrap">Shift</th>
-                  <th className="py-3.5 px-4 whitespace-nowrap text-center">OT</th>
-                  <th className="py-3.5 px-4 whitespace-nowrap">Location</th>
-                  <th className="py-3.5 px-4 whitespace-nowrap">Monthly Salary</th>
-                  <th className="py-3.5 px-4 whitespace-nowrap">Days present this month</th>
-                  <th className="py-3.5 px-4 whitespace-nowrap">Expected Take-home</th>
-                  <th className="py-3.5 px-4 text-center whitespace-nowrap">Actions</th>
+                  <th className="py-3.5 px-2.5 md:px-4 whitespace-nowrap">ID</th>
+                  <th className="py-3.5 px-2.5 md:px-4">Name</th>
+                  <th className="hidden md:table-cell py-3.5 px-2.5 md:px-4">Job</th>
+                  <th className="hidden md:table-cell py-3.5 px-2.5 md:px-4 whitespace-nowrap">DOB</th>
+                  <th className="hidden md:table-cell py-3.5 px-2.5 md:px-4 whitespace-nowrap">Shift</th>
+                  <th className="py-3.5 px-2.5 md:px-4 whitespace-nowrap text-center">OT</th>
+                  <th className="hidden md:table-cell py-3.5 px-2.5 md:px-4 whitespace-nowrap">Location</th>
+                  <th className="py-3.5 px-2.5 md:px-4 whitespace-nowrap">Monthly Salary</th>
+                  <th className="hidden md:table-cell py-3.5 px-2.5 md:px-4 whitespace-nowrap">Days present this month</th>
+                  <th className="hidden md:table-cell py-3.5 px-2.5 md:px-4 whitespace-nowrap">Expected Take-home</th>
+                  <th className="py-3.5 px-2.5 md:px-4 text-center whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
@@ -307,21 +307,21 @@ export const Employees: React.FC<EmployeesPageProps> = ({
                       }
                     >
                       {/* Code */}
-                      <td className="py-3.5 px-4 font-mono font-bold text-[#1184b0] whitespace-nowrap">
+                      <td className="py-3.5 px-2.5 md:px-4 font-mono font-bold text-[#1184b0] whitespace-nowrap">
                         {emp.empCode}
                       </td>
 
                       {/* Name & Email */}
-                      <td className="py-3.5 px-4 font-semibold text-slate-900">
+                      <td className="py-3.5 px-2.5 md:px-4 font-semibold text-slate-900">
                         <div className="flex items-center gap-2.5">
                           <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#1184b0] to-[#011638] text-white flex items-center justify-center font-bold text-xs shadow-xs shrink-0">
                             {emp.name?.charAt(0) || 'E'}
                           </div>
                           <div className="min-w-0">
-                            <span className="font-bold text-slate-900 block group-hover:text-[#1184b0] transition truncate">
+                            <span className="font-bold text-slate-900 block group-hover:text-[#1184b0] transition truncate max-w-[110px] md:max-w-none">
                               {emp.name}
                             </span>
-                            <span className="text-[10px] text-slate-400 font-normal flex items-center gap-1 mt-0.5 truncate">
+                            <span className="text-[10px] text-slate-400 font-normal hidden md:flex items-center gap-1 mt-0.5 truncate">
                               {emp.email ? (
                                 <>
                                   <Mail className="w-3 h-3 text-sky-500 shrink-0" />
@@ -336,13 +336,13 @@ export const Employees: React.FC<EmployeesPageProps> = ({
                       </td>
 
                       {/* Department / Designation */}
-                      <td className="py-3.5 px-4">
+                      <td className="hidden md:table-cell py-3.5 px-2.5 md:px-4">
                         <span className="font-semibold text-slate-800 block">{emp.department || '—'}</span>
                         <span className="text-[10px] text-slate-400 block">{emp.designation || '—'}</span>
                       </td>
 
                       {/* DOB */}
-                      <td className="py-3.5 px-4 text-slate-600 whitespace-nowrap">
+                      <td className="hidden md:table-cell py-3.5 px-2.5 md:px-4 text-slate-600 whitespace-nowrap">
                         {emp.dob ? (
                           <span className="inline-flex items-center gap-1.5 font-mono text-slate-700 text-xs font-medium">
                             <Calendar className="w-3.5 h-3.5 text-[#1184b0] shrink-0" />
@@ -354,12 +354,12 @@ export const Employees: React.FC<EmployeesPageProps> = ({
                       </td>
 
                       {/* Shift */}
-                      <td className="py-3.5 px-4 whitespace-nowrap text-slate-600">
+                      <td className="hidden md:table-cell py-3.5 px-2.5 md:px-4 whitespace-nowrap text-slate-600">
                         {emp.shiftName ? emp.shiftName : <span className="text-slate-400 italic text-[11px]">Default</span>}
                       </td>
 
                       {/* OT switch */}
-                      <td className="py-3.5 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                      <td className="py-3.5 px-2.5 md:px-4 text-center" onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
                           role="switch"
@@ -374,7 +374,7 @@ export const Employees: React.FC<EmployeesPageProps> = ({
                       </td>
 
                       {/* Location */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
+                      <td className="hidden md:table-cell py-3.5 px-2.5 md:px-4 whitespace-nowrap">
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-[11px] text-slate-700 font-medium">
                           <Building2 className="w-3.5 h-3.5 text-sky-600 shrink-0" />
                           {getLocationName(emp.location)}
@@ -382,7 +382,7 @@ export const Employees: React.FC<EmployeesPageProps> = ({
                       </td>
 
                       {/* Monthly CTC */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
+                      <td className="py-3.5 px-2.5 md:px-4 whitespace-nowrap">
                         {hasCtc ? (
                           <span className="font-bold text-slate-900 text-xs">
                             ₹{ctc.toLocaleString('en-IN')}
@@ -393,7 +393,7 @@ export const Employees: React.FC<EmployeesPageProps> = ({
                       </td>
 
                       {/* Attendance (MTD) & Holidays */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
+                      <td className="hidden md:table-cell py-3.5 px-2.5 md:px-4 whitespace-nowrap">
                         {ps ? (
                           <div>
                             <div className="flex items-center gap-1.5">
@@ -423,7 +423,7 @@ export const Employees: React.FC<EmployeesPageProps> = ({
                       </td>
 
                       {/* Est Net Salary */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
+                      <td className="hidden md:table-cell py-3.5 px-2.5 md:px-4 whitespace-nowrap">
                         {hasCtc && netPay > 0 ? (
                           <div>
                             <span className="font-bold text-emerald-600 text-xs block">
@@ -437,7 +437,7 @@ export const Employees: React.FC<EmployeesPageProps> = ({
 
                       {/* Actions */}
                       <td
-                        className="py-3.5 px-4 text-center"
+                        className="py-3.5 px-2.5 md:px-4 text-center"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <div className="flex items-center justify-center space-x-1.5">

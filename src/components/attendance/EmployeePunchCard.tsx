@@ -336,7 +336,7 @@ export const EmployeePunchCard: React.FC<EmployeePunchCardProps> = ({
           <div>
             <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
               <span>Today's Total Work</span>
-              <span className="text-amber-400 font-semibold">{punchStatus?.statusLabel || 'Pending'}</span>
+              <span className="text-amber-400 font-semibold">{punchStatus?.inProgress ? 'Working now' : punchStatus?.statusLabel || 'Pending'}</span>
             </div>
             <div className="text-2xl font-mono font-extrabold text-white mb-1">
               {`${formatMinutes(punchStatus?.workMinutes)} hrs`}

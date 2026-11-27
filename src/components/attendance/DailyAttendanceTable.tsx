@@ -73,7 +73,53 @@ export const DailyAttendanceTable: React.FC<DailyAttendanceTableProps> = ({
         </div>
       ) : (
         <>
-          <div className="overflow-x-auto">
+          {/* Phone: one card per person per day (the wide table below is for larger screens) */}
+          <ul className="md:hidden divide-y divide-slate-100">
+            {records.map((r) => (
+              <li key={`m_${r.employeeCode}_${r.businessDate}`}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDay(r)}
+                  className="w-full text-left p-4 space-y-2.5 active:bg-sky-50/60"
+                  aria-label={`Details for ${r.employeeName} on ${formatBusinessDate(r.businessDate)}`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="font-bold text-slate-900 text-sm truncate">{r.employeeName}</div>
+                      <div className="text-[11px] text-slate-500 font-mono">
+                        <span className="text-brand-600 font-semibold">{r.employeeCode}</span> · {formatBusinessDate(r.businessDate)}
+                        {r.siteName ? ` · ${r.siteName}` : ''}
+                      </div>
+                    </div>
+                    <div className="shrink-0">{getStatusBadge(r)}</div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div className="rounded-xl bg-emerald-50 border border-emerald-100 px-2.5 py-1.5">
+                      <div className="text-[10px] uppercase tracking-wide text-emerald-700/70 font-bold">In</div>
+                      <div className="font-mono font-bold text-emerald-700">{r.firstIn || '--:--'}</div>
+                    </div>
+                    <div className="rounded-xl bg-cyan-50 border border-cyan-100 px-2.5 py-1.5">
+                      <div className="text-[10px] uppercase tracking-wide text-cyan-700/70 font-bold">Out</div>
+                      <div className="font-mono font-bold text-cyan-700">{r.lastOut || '--:--'}</div>
+                    </div>
+                    <div className="rounded-xl bg-slate-50 border border-slate-200 px-2.5 py-1.5">
+                      <div className="text-[10px] uppercase tracking-wide text-slate-500 font-bold">Hours</div>
+                      <div className="font-mono font-bold text-slate-700">
+                        {r.workMinutes ? `${Math.floor(r.workMinutes / 60)}h ${r.workMinutes % 60}m` : '--'}
+                      </div>
+                    </div>
+                  </div>
+                  {r.firstIn && r.isLate && (
+                    <div className="text-[11px] font-bold text-amber-700">
+                      Late by {Math.floor(r.lateMinutes / 60)}h {r.lateMinutes % 60}m
+                    </div>
+                  )}
+                </button>
+              </li>
+            ))}
+          </ul>
+
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-bold border-b border-slate-200 text-[10px]">
                 <tr>
@@ -174,7 +220,7 @@ export const DailyAttendanceTable: React.FC<DailyAttendanceTableProps> = ({
 
           {/* Pagination Footer */}
           <div className="p-4 border-t border-slate-200 bg-slate-50/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-600">
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
               <span className="font-medium">
                 Showing <strong className="text-slate-900">{Math.min((page - 1) * limit + 1, total)}</strong> to{' '}
                 <strong className="text-slate-900">{Math.min(page * limit, total)}</strong> of{' '}
