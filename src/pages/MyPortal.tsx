@@ -172,6 +172,12 @@ export const MyPortal: React.FC = () => {
     const matchesSearch = !q || emp.name.toLowerCase().includes(q) || emp.empCode.toLowerCase().includes(q) || (emp.department ?? '').toLowerCase().includes(q);
     return matchesSearch && (departmentFilter === 'ALL' || emp.department === departmentFilter);
   });
+  // Typing in the search box (or changing department) jumps to the first match, so the page follows what was typed.
+  useEffect(() => {
+    if (isEmployee || filteredEmployees.length === 0) return;
+    if (!filteredEmployees.some((e) => e.empCode === selectedEmpCode)) setSelectedEmpCode(filteredEmployees[0].empCode);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, departmentFilter, allEmployees]);
   const departments = Array.from(new Set(allEmployees.map((e) => e.department).filter(Boolean))) as string[];
 
   const isPastMonth = month !== currentMonth;
@@ -210,6 +216,7 @@ export const MyPortal: React.FC = () => {
                 </select>
               )}
               <select value={selectedEmpCode} onChange={(e) => setSelectedEmpCode(e.target.value)} className="bg-gradient-to-r from-[#011638] to-[#1184b0] text-white font-bold text-xs rounded-xl px-3.5 py-2.5 w-full md:w-auto">
+                {filteredEmployees.length === 0 && <option value="">No staff match</option>}
                 {filteredEmployees.map((emp) => (<option key={emp.empCode} value={emp.empCode} className="bg-slate-900 text-white">#{emp.empCode}: {emp.name}{emp.department ? ` (${emp.department})` : ''}</option>))}
               </select>
             </div>
