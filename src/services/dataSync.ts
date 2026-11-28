@@ -109,6 +109,7 @@ export const initRealtimeSync = () => {
     })
     .catch(() => {
       // Server unreachable / not signed in: poll for changes, then retry with a fresh ticket.
+      if (!localStorage.getItem(TOKEN_STORAGE_KEY)) return; // logged out meanwhile: nothing to poll or retry
       if (!fallbackPollTimer) fallbackPollTimer = setInterval(checkServerRevision, 25000);
       reconnectAttempts++;
       const delay = Math.min(30000, 2000 * Math.pow(1.5, reconnectAttempts));
