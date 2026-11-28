@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { API_BASE, TOKEN_STORAGE_KEY, clearApiCache } from './api';
+import { requestStreamUrl } from './realtimeTicket';
 
 /**
  * App-wide "data changed" signal.
@@ -19,6 +20,7 @@ let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 let fallbackPollTimer: ReturnType<typeof setInterval> | undefined;
 let eventSource: EventSource | null = null;
+let connecting = false;
 let reconnectAttempts = 0;
 
 const listeners = new Set<() => void>();
@@ -92,13 +94,32 @@ const checkServerRevision = async () => {
 // Connect to Server-Sent Events (SSE) for instant cross-user / cross-device updates
 export const initRealtimeSync = () => {
   if (typeof window === 'undefined') return;
-  if (eventSource && eventSource.readyState !== EventSource.CLOSED) return;
+  if (connecting || (eventSource && eventSource.readyState !== EventSource.CLOSED)) return;
 
   const token = localStorage.getItem(TOKEN_STORAGE_KEY);
   if (!token) return;
 
+  connecting = true;
+  // The login token only travels in a header; the stream URL carries a short-lived single-use ticket.
+  requestStreamUrl(API_BASE, token)
+    .then((url) => {
+      // Logged out, or another connect won, while the ticket was being fetched.
+      if (!url || !localStorage.getItem(TOKEN_STORAGE_KEY) || eventSource) throw new Error('no stream ticket');
+      openStream(url);
+    })
+    .catch(() => {
+      // Server unreachable / not signed in: poll for changes, then retry with a fresh ticket.
+      if (!fallbackPollTimer) fallbackPollTimer = setInterval(checkServerRevision, 25000);
+      reconnectAttempts++;
+      const delay = Math.min(30000, 2000 * Math.pow(1.5, reconnectAttempts));
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (localStorage.getItem(TOKEN_STORAGE_KEY)) reconnectTimer = setTimeout(initRealtimeSync, delay);
+    })
+    .finally(() => { connecting = false; });
+};
+
+const openStream = (url: string) => {
   try {
-    const url = `${API_BASE}/realtime/stream?token=${encodeURIComponent(token)}`;
     eventSource = new EventSource(url);
 
     eventSource.addEventListener('init', (e: MessageEvent) => {
